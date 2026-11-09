@@ -16,8 +16,12 @@ Secrets (Settings, Secrets and variables, Actions):
   secret is passed as an empty value, which argmax ignores)
 - one agent key: `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` (Claude Code), `OPENAI_API_KEY` (Codex),
   `XAI_API_KEY` (Grok)
-- optional `ARGMAX_CONFIG_YAML` if you do not commit `argmax.yaml`
+- `ARGMAX_CONFIG_YAML`: the whole config. Recommended: it is the guardrails lock. The agent can edit files in the
+  checkout, but not a secret, so with it set `argmax.yaml` in the repo is only advisory (SETUP.md, "Guardrails lock")
 
-The agent does the work; the last step commits the runtime files (`ARGMAX_COMMIT=workflow`). The built-in
+The secrets reach only the step that runs the agent, not the whole job. The agent does the work, allowed only
+argmax's scripts and the tracker's `gh` commands (see each example). Then "Guardrail files untouched" fails the run,
+and nothing is committed, if the agent changed `scripts/`, `prompts/`, `trackers/`, `AGENTS.md` or `argmax.yaml`, or
+left code in `log/`, `reports/` or `decisions/`. The last step commits the runtime files (`ARGMAX_COMMIT=workflow`). The built-in
 `GITHUB_TOKEN` handles issues (github-issues tracker) and the push. Scheduled workflows run from the default branch
 only.

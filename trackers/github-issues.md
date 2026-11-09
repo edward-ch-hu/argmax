@@ -25,7 +25,8 @@ gh label create owner-replied        --color 5319E7 --description "the owner ans
 gh issue create --title "<YYYY-MM-DD> Google Ads weekly" --label argmax:weekly \
   --assignee "<assignee>" --body-file reports/weekly-issue.md
 ```
-(`argmax:monthly` and `<YYYY-MM> Google Ads monthly` for the monthly.) Write the body to a temp file first: the
+(`argmax:monthly` and `<YYYY-MM> Google Ads monthly` for the monthly.) Write the body to `reports/weekly-issue.md` first (headless
+runs may only write under log/, reports/, decisions/, .argmax/tmp/ and STRATEGY.md): the
 header lines from AGENTS.md, then the log entry. Close the previous weekly report issue with `gh issue close <n>` so only the
 newest stays open. The monthly's client message goes in one extra comment: `gh issue comment <n> --body-file <f>`.
 
@@ -39,7 +40,7 @@ gh issue comment "$n" --body "[argmax] Daily scout <data date> (run <today>): ..
 GitHub issues have no due date: it goes in the title and the body's first line.
 ```bash
 gh issue create --title "Unless you say no: <decision> (due <YYYY-MM-DD>)" \
-  --label argmax:decision --label unless-no --assignee "<assignee>" --body-file decision.md
+  --label argmax:decision --label unless-no --assignee "<assignee>" --body-file reports/decision-issue.md
 ```
 Labels by kind: `Needs yes:` gets `needs-yes`, `Unless you say no:` gets `unless-no`, `Done, reply reverse to
 undo:` gets `done-reversible`. Body: `Due: <YYYY-MM-DD>` on the first line, a blank line, then the 4-line format.

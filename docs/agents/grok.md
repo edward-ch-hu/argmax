@@ -41,12 +41,20 @@ project `.mcp.json` (https://docs.x.ai/build/features/mcp-servers.md).
 grok --no-auto-update -p "$(cat prompts/weekly-review.md)" \
   --permission-mode dontAsk \
   --allow 'Read' --allow 'Edit' --allow 'Write' \
-  --allow 'Bash(uv *)' --allow 'Bash(pip install *)' --allow 'Bash(git *)' --allow 'Bash(gh *)' \
+  --allow 'Bash(pip install uv)' --allow 'Bash(uv sync)' --allow 'Bash(uv run scripts/*)' \
+  --allow 'Bash(git add -f *)' --allow 'Bash(git commit -m *)' --allow 'Bash(git pull --rebase*)' \
+  --allow 'Bash(git push*)' --allow 'Bash(git rebase --abort)' --allow 'Bash(git reset --hard origin/*)' \
+  --allow 'Bash(gh issue *)' --allow 'Bash(gh label *)' --allow 'Bash(gh pr view *)' --allow 'Bash(gh repo view *)' \
   --max-turns 200 --output-format plain
 ```
-`-p` runs one prompt non-interactively; `dontAsk` with `--allow` rules approves only what the routine needs
-(https://docs.x.ai/build/cli/headless-scripting.md, https://docs.x.ai/build/cli/reference.md). Avoid
-`--always-approve` / `--yolo` outside a throwaway VM.
+`-p` runs one prompt non-interactively; `dontAsk` silently denies anything without an allow rule
+(https://docs.x.ai/build/cli/headless-scripting.md, https://docs.x.ai/build/features/permissions). Bash rules are
+prefixes with no word boundary, so keep the trailing ` *`; compound commands are split and every part must be
+allowed. Not `Bash(uv *)`: it would allow `uv run python -c "..."`, a direct API call that skips every guardrail.
+Path-scoped `Edit(...)` / `Write(...)` rules are not in xAI's CLI docs, so edits stay unscoped here: set
+`ARGMAX_CONFIG_YAML` in the environment (the lock, SETUP.md "Guardrails lock"), keep the workflow's "Guardrail
+files untouched" step, and read each weekly report's Guardrails line. Avoid `--always-approve` / `--yolo` outside a
+throwaway VM.
 
 ## Scheduling
 - **GitHub Actions**: there is no official Grok GitHub Action. `.github/workflows/argmax-weekly-grok.yml.example`

@@ -24,7 +24,7 @@ workflow commits the runtime files after you finish. Everything else stays the s
 5. Commit only the daily files and the ledger (they are gitignored on purpose, so add them by path):
    `git add -f reports/daily/ reports/changes.jsonl && git commit -m "Daily scout <date>"`, then
    `git pull --rebase` and `git push`. If the rebase conflicts (the weekly pushed first): copy this run's lines of
-   reports/changes.jsonl (routine "daily") to a temp file, `git rebase --abort`, `git reset --hard origin/<branch>`,
+   reports/changes.jsonl (routine "daily") to `.argmax/tmp/`, `git rebase --abort`, `git reset --hard origin/<branch>`,
    append those lines back, run steps 2 to 4 again (step 3 will not step twice; step 4 will not add a negative
    twice and rebuilds the day's "added" list from the ledger), commit and push. If the push is still refused,
    mention it in step 6.

@@ -225,6 +225,10 @@ Never, without a human "yes" on a decision:
 
 ## Hard rules for every agent
 - Validate first, then `--apply`. Never work around a FAIL line; fix the input or propose a change.
+- Change the account only through `uv run scripts/<script>.py`. Never call the Google Ads API another way (no
+  `python -c`, no ad hoc script), and in a routine never edit `scripts/`, `prompts/`, `trackers/`, `AGENTS.md` or
+  `argmax.yaml`: those change only in a session with the owner. When `ARGMAX_CONFIG_YAML` is set, it is the config
+  and `argmax.yaml` is only a copy.
 - Never put CRM names or emails anywhere (repo, tracker, chat). Never echo secrets; they live only in
   `google-ads.yaml`, `client_secret*.json` or environment variables, all gitignored.
 - In the private copy, commit runtime files explicitly with `git add -f <paths>` (they are gitignored so they can

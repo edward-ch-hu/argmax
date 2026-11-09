@@ -56,6 +56,14 @@ Source: https://learn.chatgpt.com/docs/non-interactive-mode, https://learn.chatg
 Whether the sandbox lets `git push` reach your remote depends on your setup; the GitHub Actions example lets the
 workflow commit instead (`ARGMAX_COMMIT=workflow`).
 
+Guardrails: `codex exec` has no closed command allowlist like Claude Code's `--allowedTools`. Codex rules
+(`prefix_rule(...)` in `.codex/rules/*.rules`, https://learn.chatgpt.com/docs/agent-configuration/rules.md) can
+forbid commands, but the docs do not say what happens to a command no rule matches, so they cannot be relied on to
+allow only `uv run scripts/*`, and `workspace-write` lets the agent write anywhere in the checkout. So keep the
+limits out of its reach another way: set `ARGMAX_CONFIG_YAML` in the run environment (the lock, SETUP.md
+"Guardrails lock"), keep the workflow's "Guardrail files untouched" step (it fails the run and commits nothing when
+`scripts/`, `prompts/` or `argmax.yaml` changed), and read the Guardrails line of each weekly report.
+
 ## Scheduling
 **GitHub Actions (recommended).** `.github/workflows/argmax-weekly-codex.yml.example` uses `openai/codex-action@v1`
 (inputs `prompt-file`, `openai-api-key`, `sandbox`, `codex-args`; https://learn.chatgpt.com/docs/github-action.md).

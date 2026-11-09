@@ -264,7 +264,11 @@ Read-only and validate-only, so nothing changes in the account:
 Read `docs/agents/<their agent>.md` and set up the three routines (daily scout Tuesday to Sunday, weekly review
 Monday, monthly review on the 1st, all in the account time zone) the way that agent supports: Claude Code cloud
 routines, a GitHub Actions workflow (`.github/workflows/*.example`), cron with a headless CLI, or by hand. Put the
-secrets where that doc says (cloud environment variables or GitHub Actions secrets), never in the repo. Run one
+secrets where that doc says (cloud environment variables or GitHub Actions secrets), never in the repo. Also put the
+whole `argmax.yaml` into `ARGMAX_CONFIG_YAML` there and explain why in one line: "the routine can edit files in the
+repo but not this setting, so your limits stay yours" (SETUP.md, "Guardrails lock"). Use that doc's allowlist as
+it is; never widen it to `uv *`, `git *`, `gh *` or edits outside the data folders. After any later limit change,
+update the variable too (`doctor.py` warns when the file and the variable differ). Run one
 routine once by hand to prove it. Record `scheduling done` (or `skipped "runs by hand"`).
 
 ## Done

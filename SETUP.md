@@ -120,12 +120,32 @@ simply do not start.
 
 Environment variables for cloud and CI runs (never commit these):
 `GOOGLE_ADS_CLIENT_ID`, `GOOGLE_ADS_CLIENT_SECRET`, `GOOGLE_ADS_REFRESH_TOKEN` (required), plus `GH_TOKEN` for
-the github-issues tracker and optionally `ARGMAX_CONFIG_YAML`. Optional: `GOOGLE_ADS_LOGIN_CUSTOMER_ID` (only for an
+the github-issues tracker and `ARGMAX_CONFIG_YAML` (recommended: the guardrails lock, below). Optional: `GOOGLE_ADS_LOGIN_CUSTOMER_ID` (only for an
 account reached through a manager), `GOOGLE_ADS_DEVELOPER_TOKEN` (an old token, ignored by Google),
 `GOOGLE_ADS_USE_PROTO_PLUS` (defaults to True). Empty values are ignored.
 
 The routines commit their memory (`log/`, `reports/`, `decisions/`) to your private copy with `git add -f`, because
 those paths are gitignored in the public repo. That is what lets the next run read the last one.
+
+## Guardrails lock
+The scripts refuse anything outside the limits, and no argument at run time changes that. What keeps the limits
+themselves out of the agent's reach is the run environment, not the agent's good will: a routine agent works in a
+checkout it can write to, so it could edit `argmax.yaml` or a script before running it. Three things close that:
+1. **Config in the environment.** Put the whole config in `ARGMAX_CONFIG_YAML` (a GitHub Actions secret or
+   variable, the cloud task's environment, or the cron environment). `config.py` reads it before any file, so with
+   it set `argmax.yaml` in the repo is advisory: keep it as a readable copy, but the scripts never read limits from
+   it. `doctor.py` says "config locked by ARGMAX_CONFIG_YAML" and warns when the file and the variable differ. To
+   change a limit, you change the variable; the agent cannot.
+2. **A headless allowlist.** Routines may run `uv run scripts/*`, `uv sync`, the git commands that commit their
+   files and the tracker's `gh` commands, and edit only `log/`, `reports/`, `decisions/`, `.argmax/tmp/` and
+   `STRATEGY.md` where the agent supports path rules (Claude Code does; `docs/agents/<agent>.md` has each agent's
+   exact list and what it cannot scope). Never `uv *` (it allows `uv run python -c`, a direct API call), never edits
+   to `scripts/` or `argmax.yaml`. The workflow examples also fail the run, and commit nothing, when the engine or
+   the config changed.
+3. **Visible drift.** `doctor.py` prints "argmax.yaml and scripts/ last changed <date> <commit> by <author>", and
+   every weekly report copies it into its header. A change you did not make is the first thing to look at.
+Without the lock (a local run, an agent with no allowlist) the limits still hold against every run that uses the
+scripts, but nothing stops a determined agent from editing them first. Review such runs.
 
 ## 9. Manual commands worth knowing
 ```bash

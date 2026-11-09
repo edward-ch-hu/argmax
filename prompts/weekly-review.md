@@ -83,7 +83,7 @@ workflow commits the runtime files after you finish. Everything else stays the s
    `git add -f log/<YYYY-MM-DD>.md reports/ decisions/ STRATEGY.md && git commit -m "Weekly review <YYYY-MM-DD>"`,
    then `git pull --rebase` and `git push`. If the rebase conflicts: copy this run's files (the log, the snapshot,
    the review and changes JSON files, reports/ad_tests.json, reports/claims_check.json, decisions/, STRATEGY.md and
-   this run's lines of reports/changes.jsonl) to a temp folder, `git rebase --abort`, `git reset --hard
+   this run's lines of reports/changes.jsonl) to `.argmax/tmp/`, `git rebase --abort`, `git reset --hard
    origin/<branch>`, copy them back (append the ledger lines), run `uv run scripts/daily_scout.py <Sunday>` and
    `uv run scripts/daily_bids.py --apply` again (both safe to re-run), commit and push. Do not re-run the other
    apply scripts or ad_test.py: those changes are already live. If pushing is still refused, push a branch and say
