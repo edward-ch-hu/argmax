@@ -215,8 +215,9 @@ def api_check(cfg):
         return status, "api", message
     except SystemExit as e:  # missing credentials
         return "FAIL", "api", str(e)
-    except Exception as e:  # e.g. a bad refresh token
-        return "FAIL", "api", f"{type(e).__name__}: {e}"
+    except Exception as e:  # e.g. an expired refresh token (RefreshError: invalid_grant)
+        status, message = api_error_status(f"{type(e).__name__}: {e}")
+        return status, "api", message
     c = rows[0].customer
     notes = [f"{what} in argmax.yaml is {mine}, the account says {live}"
              for what, live, mine in (("currency", c.currency_code, cfg.account.currency),

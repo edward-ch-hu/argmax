@@ -47,19 +47,28 @@ refresh token (the user's consent, stored locally). Walk through, one at a time,
 2. APIs and Services, Library, search "Google Ads API", Enable. If they will use a Google Sheet as CRM, also enable
    "Google Sheets API". Enabling gives the project Test access (test accounts only).
 3. OAuth consent screen: APIs and Services, OAuth consent screen (Google Auth Platform, Branding / Audience): user
-   type External, app name "argmax", their email; under Audience add their Google account as a test user.
+   type External, app name "argmax", their email. Then under Audience set Publishing status to "In production"
+   ("Publish app"). Say why in one line: "In Testing, Google expires the sign-in after 7 days and every routine
+   stops." Also say: the consent page in step 7 will warn "Google hasn't verified this app"; that is expected for an
+   app they made for themselves, and safe to click through (Advanced, Go to argmax). Check the status says "In
+   production" before going on.
 4. OAuth client: APIs and Services, Credentials, Create credentials, OAuth client ID, application type "Desktop
    app". Download the JSON into the repo root as `client_secret.json` (gitignored).
 5. Explorer access: open https://console.cloud.google.com/google/ads-apis/overview (same project), check the current
    level says Test, expand "Upgrade access level", check the next level says Explorer, click "Apply for access". It
    is usually approved automatically within minutes. If it is not, finish the other steps and record
    `google_ads_api pending "waiting on Explorer access"`.
-6. `cp google-ads.example.yaml google-ads.yaml`; it needs only `client_id` and `client_secret` (from the JSON) and
-   the refresh token. Offer to fill client_id and client_secret from `client_secret.json` yourself, without printing
-   them. If they already have a developer token or a manager account, see "Existing developer token or manager
-   account" below; neither is needed.
+6. `google-ads.yaml` needs only `client_id`, `client_secret` and the refresh token. Step 7 creates it from the
+   example and fills client_id and client_secret from `client_secret.json` when they are missing, so there is
+   nothing to copy by hand. If they already have a developer token or a manager account, see "Existing developer
+   token or manager account" below; neither is needed.
 7. `uv run scripts/get_refresh_token.py client_secret.json`: a browser opens; they sign in with the Google login that
-   opens their ad account and accept. It saves the refresh token into `google-ads.yaml`.
+   opens their ad account and accept (through the "unverified app" warning, step 3). It saves the refresh token into
+   `google-ads.yaml` and never prints it; never `cat` that file or echo the token. On a machine without a browser
+   (a server, a container, an SSH session) it switches to `--console`: it prints a URL to open on any device, and the
+   user pastes back the address of the page the browser lands on (a one-time code, not the token). The user should
+   run it in their own terminal (in Claude Code: `! uv run scripts/get_refresh_token.py client_secret.json`), since
+   it waits for their input.
 8. `uv run scripts/accounts.py` lists the accounts the login reaches. A CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION
    error means the project still has Test access: Explorer is pending (step 5); record pending and go on.
 9. Access level. The API does not report it, so: if `accounts.py` reads their live account, the project has at least
@@ -84,6 +93,8 @@ is reached through that manager (`accounts.py` shows "via manager"), and leave i
 ad account directly.
 
 Troubleshooting (tell the user only the one that applies):
+- invalid_grant or "Token has been expired or revoked": the consent screen is still in Testing (7-day tokens), or
+  access was removed. Publish the app (step 3), run step 7 again, and update the token in the cloud secrets.
 - AUTHORIZATION_ERROR on their live account after an upgrade: a known Google issue for projects upgraded after
   September 9, 2026. Workaround: a new Cloud project (steps 1 to 5 again: enable the API, a new Desktop OAuth client,
   apply for Explorer), then `get_refresh_token.py` with the new `client_secret.json` and update `client_id` and

@@ -15,8 +15,11 @@ project that owns your OAuth client, and your own Google login (the one that ope
 1. **Google Cloud project**: https://console.cloud.google.com , new project.
 2. **Enable the Google Ads API**: APIs and Services, Library, "Google Ads API", Enable (also **Google Sheets API** if
    your CRM is a Google Sheet). This alone gives the project **Test** access: test accounts only.
-3. **OAuth consent screen** (Google Auth Platform): External, app name "argmax", your email; under Audience add your
-   Google account as a test user.
+3. **OAuth consent screen** (Google Auth Platform): External, app name "argmax", your email. Then, under Audience,
+   set **Publishing status: In production** ("Publish app"). This matters: an External app left in "Testing" gets
+   refresh tokens that expire after 7 days, and every routine then fails with `invalid_grant`. A personal app in
+   production needs no Google verification for your own use; the consent page will say "Google hasn't verified this
+   app". That warning is expected for an app you made yourself and safe to click through (Advanced, Go to argmax).
 4. **OAuth client**: Credentials, Create credentials, OAuth client ID, **Desktop app**. Download the JSON into the
    repo root as `client_secret.json` (gitignored).
 5. **Apply for Explorer**: the Google Ads API Overview page, https://console.cloud.google.com/google/ads-apis/overview
@@ -39,11 +42,15 @@ uses the ad account itself as the login customer).
 ## 2. Credentials
 ```bash
 cp google-ads.example.yaml google-ads.yaml        # gitignored
-# fill in client_id and client_secret (from client_secret.json); nothing else is needed
+# client_id and client_secret come from client_secret.json; get_refresh_token.py fills them in when they are
+# still placeholders (and creates google-ads.yaml from the example when it is missing)
 uv run scripts/get_refresh_token.py client_secret.json   # browser sign-in with the login that opens the ad account
+# no browser on this machine (server, container, SSH)? add --console: it prints a URL to open on any device
 uv run scripts/accounts.py                        # the accounts you can reach, with currency and time zone
 ```
 The Python library needs no developer token from google-ads 32.0.0 on (`pyproject.toml` asks for 32 or later).
+`get_refresh_token.py` writes the token into `google-ads.yaml` and never prints it, so it stays out of terminal logs
+and agent transcripts. For cloud runs, copy it from that file into the `GOOGLE_ADS_REFRESH_TOKEN` secret yourself.
 
 ## 3. argmax.yaml
 ```bash
@@ -160,6 +167,12 @@ The busiest day (Monday) stays under 400 operations, about 14% of Explorer's 2,8
 sessions with your agent (many `gaql.py` queries) share the same daily quota.
 
 ## Troubleshooting
+- **invalid_grant, "Token has been expired or revoked"** (`doctor.py`, `check_connection.py` or a routine): the
+  refresh token no longer works. Usual cause: the OAuth consent screen is still in "Testing", where Google expires
+  refresh tokens after 7 days. Open Google Auth Platform, Audience, and click "Publish app" (Publishing status: In
+  production; the "unverified app" warning on the consent page is expected for a personal app and safe to click
+  through). Then run `get_refresh_token.py` again and update `GOOGLE_ADS_REFRESH_TOKEN` wherever the routines run.
+  Other causes: you removed argmax's access in your Google account, or the token went unused for 6 months.
 - **CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION** (older API versions: ACTION_NOT_PERMITTED; with an old token:
   DEVELOPER_TOKEN_NOT_APPROVED): the project has Test access only. Apply for Explorer (step 1.5). An approved token
   that was never used with a project did not move to it: apply for Explorer on the project that owns your OAuth client.

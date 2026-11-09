@@ -1,5 +1,6 @@
 """The 2026 Google Ads API access model: no developer token, access levels per Cloud project, Explorer without
 Keyword Planner. No network."""
+from pathlib import Path
 from types import SimpleNamespace
 
 import ads_client
@@ -8,6 +9,7 @@ import doctor
 import get_refresh_token
 import keyword_review
 import pytest
+import yaml
 from conftest import EXAMPLE, make
 from google.ads.googleads.errors import GoogleAdsException
 from google.ads.googleads.v26.errors.types.authorization_error import AuthorizationErrorEnum
@@ -149,5 +151,36 @@ def test_render_shows_the_ideas_note():
 
 
 def test_refresh_token_is_added_when_the_line_is_missing():
-    assert get_refresh_token.with_token("client_id: a\n", "t") == "client_id: a\nrefresh_token: t\n"
-    assert get_refresh_token.with_token("refresh_token: INSERT_REFRESH_TOKEN\n", "t") == "refresh_token: t\n"
+    assert get_refresh_token.with_token("client_id: a\n", "t") == 'client_id: a\nrefresh_token: "t"\n'
+    assert get_refresh_token.with_token("refresh_token: INSERT_REFRESH_TOKEN  # comment\n", "1//0g") == \
+        'refresh_token: "1//0g"\n'
+
+
+def test_credentials_text_fills_placeholders_only():
+    example = (Path(__file__).resolve().parent.parent / "google-ads.example.yaml").read_text()
+    text = get_refresh_token.credentials_text(example, "1//tok", "id.apps", "sec")
+    data = yaml.safe_load(text)
+    assert (data["client_id"], data["client_secret"], data["refresh_token"]) == ("id.apps", "sec", "1//tok")
+    kept = get_refresh_token.credentials_text('client_id: "mine"\nclient_secret: "s"\n', "t", "other", "x")
+    assert yaml.safe_load(kept) == {"client_id": "mine", "client_secret": "s", "refresh_token": "t"}
+
+
+def test_refresh_token_is_saved_never_printed(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "google-ads.example.yaml").write_text("client_id: INSERT_OAUTH_CLIENT_ID\nrefresh_token: INSERT_X\n")
+    creds = SimpleNamespace(refresh_token="1//secret-token", client_id="cid", client_secret="csecret")
+    get_refresh_token.save(creds)
+    out = capsys.readouterr().out
+    assert "secret-token" not in out and "csecret" not in out and "Created google-ads.yaml" in out
+    saved = yaml.safe_load((tmp_path / "google-ads.yaml").read_text())
+    assert saved["refresh_token"] == "1//secret-token" and saved["client_id"] == "cid"
+    assert ((tmp_path / "google-ads.yaml").stat().st_mode & 0o077) == 0
+
+
+def test_console_code_from_the_pasted_address():
+    assert get_refresh_token.code_from("http://localhost:8765/?state=x&code=4/0Abc&scope=a") == "4/0Abc"
+    assert get_refresh_token.code_from("  4/0Abc ") == "4/0Abc"
+    with pytest.raises(SystemExit, match="access_denied"):
+        get_refresh_token.code_from("http://localhost:8765/?error=access_denied")
+    with pytest.raises(SystemExit, match="no code"):
+        get_refresh_token.code_from("http://localhost:8765/?state=x")

@@ -122,6 +122,33 @@ def test_doctor_api_errors():
     assert status == "FAIL" and "new Cloud project" not in message and "login_customer_id" in message
 
 
+def test_expired_refresh_token_points_at_the_consent_screen(monkeypatch):
+    for text in ("RefreshError: ('invalid_grant: Token has been expired or revoked.', {'error': 'invalid_grant'})",
+                 "Getting metadata from plugin failed with error: Token has been expired or revoked."):
+        status, message = doctor.api_error_status(text)
+        assert status == "FAIL" and "In production" in message and "7 days" in message and "get_refresh_token" in message
+
+    import ads_client
+
+    def boom():
+        raise RuntimeError("('invalid_grant: Token has been expired or revoked.', {})")
+    with pytest.raises(SystemExit) as e:
+        ads_client.run(boom)
+    assert "In production" in str(e.value)
+
+    def other():
+        raise RuntimeError("something else")
+    with pytest.raises(RuntimeError):
+        ads_client.run(other)
+
+    class Broken:  # doctor's API check turns the same error into a FAIL line with the hint
+        def get_service(self, name):
+            raise RuntimeError("invalid_grant: Token has been expired or revoked.")
+    monkeypatch.setattr(ads_client, "load", lambda: Broken())
+    status, item, message = doctor.api_check(None)
+    assert (status, item) == ("FAIL", "api") and "In production" in message
+
+
 def test_doctor_crm_and_tracker():
     cfg = make(**{"crm.source": "csv", "crm.csv_path": str(ROOT / "docs/crm.example.csv")})
     values = crm.raw_values(cfg)

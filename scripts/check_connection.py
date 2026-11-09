@@ -43,4 +43,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    ads_client.run(main)
