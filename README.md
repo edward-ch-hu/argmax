@@ -23,8 +23,8 @@ spend* = argmax_{spend in guardrails} E[deals | spend]
 The guardrails are the constraint set, and they are not negotiable: the optimiser is an LLM, the constraints are
 plain Python.
 
-This public repo is a **GitHub template**: you run argmax from your own private copy, because its logs and reports
-hold your account's data.
+You run argmax from your own **private** copy of this public repo (a clone pushed to a new private repo, never a
+fork), because its logs and reports hold your account's data and its decisions are approvals.
 
 ## What it does
 
@@ -91,7 +91,8 @@ flowchart LR
 ## Quickstart (about 15 minutes of your time; no developer token, no manager account)
 
 1. **Make your private copy.** Paste the one-message prompt at the top into your agent, or by hand:
-   `gh repo create my-argmax --private --template edward-ch-hu/argmax --clone` (details in `BOOTSTRAP.md`).
+   `git clone https://github.com/edward-ch-hu/argmax my-argmax && cd my-argmax && git remote rename origin upstream
+   && gh repo create my-argmax --private --source . --remote origin --push` (details in `BOOTSTRAP.md`).
 2. **Open it in your agent and say "onboard me".** `prompts/onboarding.md` walks you through prerequisites, the
    Google Ads API, picking the account, your business profile (goal, KPI, markets, report language, deal currency),
    your tracker, your CRM, your strategy, the guardrails, a first read-only run, and scheduling. Google Ads API
@@ -129,8 +130,9 @@ your existing notes.
 - **Validate by default, `--apply` to change.** Every write script prints what it would do and changes nothing
   until `--apply`. A FAIL line means nothing changed, and the agent is told never to work around one.
 - **Secrets never touch the repo**: `google-ads.yaml`, `client_secret*.json` and env vars only (all gitignored).
-- **Your data stays in your private copy.** The public template gitignores every runtime path; your copy tracks
-  them with `git add -f`, and `upstream` is set read-only.
+- **Your data stays in your private copy.** The public repo gitignores every runtime path; your copy tracks
+  them with `git add -f`, and `upstream` is set read-only. `doctor.py` fails, and every routine stops, when the
+  copy's GitHub repo is not private.
 - **Auto-apply recommendations stay off**, and the daily guard alerts if Google turns any back on.
 - You are responsible for your ad account. Start with conservative limits; onboarding defaults to them.
 

@@ -4,9 +4,11 @@ The fastest path is your agent: say "onboard me" (`prompts/onboarding.md`). This
 `uv run scripts/doctor.py` shows what is still missing at any point.
 
 ## 0. Your private copy
-argmax keeps logs, reports and decisions about your account in the repo, so run it from a private copy of this
-template: `gh repo create my-argmax --private --template edward-ch-hu/argmax --clone`, then add the public repo as a
-read-only `upstream` (`BOOTSTRAP.md`, `docs/updating.md`). Install `git`, `uv` (https://docs.astral.sh/uv/) and,
+argmax keeps logs, reports and decisions about your account in the repo, so run it from a private copy: clone
+the public repo, keep it as a read-only `upstream`, and push to a new private repo (`BOOTSTRAP.md`):
+`git clone https://github.com/edward-ch-hu/argmax my-argmax && cd my-argmax && git remote rename origin upstream &&
+git remote set-url --push upstream DISABLED && gh repo create my-argmax --private --source . --remote origin --push`.
+Never a GitHub fork (always public). The shared history makes updates a plain merge (`docs/updating.md`). Install `git`, `uv` (https://docs.astral.sh/uv/) and,
 for GitHub, `gh`. Then `uv sync && uv run pytest -q`.
 
 ## 1. Google Ads API access
@@ -123,7 +125,7 @@ account reached through a manager), `GOOGLE_ADS_DEVELOPER_TOKEN` (an old token, 
 `GOOGLE_ADS_USE_PROTO_PLUS` (defaults to True). Empty values are ignored.
 
 The routines commit their memory (`log/`, `reports/`, `decisions/`) to your private copy with `git add -f`, because
-those paths are gitignored in the public template. That is what lets the next run read the last one.
+those paths are gitignored in the public repo. That is what lets the next run read the last one.
 
 ## 9. Manual commands worth knowing
 ```bash

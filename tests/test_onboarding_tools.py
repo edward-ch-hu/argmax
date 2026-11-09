@@ -208,3 +208,59 @@ def test_crm_inspect_only_headers_and_statuses():
     assert out == {"headers": ["Name", "Email", "Status"], "rows": 4, "statuses": {"Won": 2, "Trial": 1}}
     assert "error" in crm.inspect(values, "Stage")
     assert crm.inspect([], "Status")["headers"] == []
+
+
+def test_doctor_guardrails_line():
+    status, message = doctor.guardrails_status("2026-11-09 3192780 Edward Hu", [], "ARGMAX_CONFIG_YAML", False)
+    assert status == "OK"
+    assert message.startswith("argmax.yaml and scripts/ last changed 2026-11-09 3192780 by Edward Hu")
+    assert "locked by ARGMAX_CONFIG_YAML (argmax.yaml is advisory)" in message
+    assert "differs" in doctor.guardrails_status("2026-11-09 3192780 Ed", [], "ARGMAX_CONFIG_YAML", True)[1]
+    status, message = doctor.guardrails_status("2026-11-09 3192780 Ed", ["scripts/apply_changes.py"], "argmax.yaml",
+                                               False)
+    assert status == "WARN" and "uncommitted changes in scripts/apply_changes.py" in message and "not locked" in message
+    assert "unknown" in doctor.guardrails_status(None, [], None, False)[1]
+
+
+def test_doctor_guardrails_reads_the_environment_lock(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)  # not a git checkout
+    (tmp_path / "argmax.yaml").write_text("a: 1\n")
+    status, message = doctor.guardrails_check({"ARGMAX_CONFIG_YAML": "a: 2\n"})
+    assert "locked by ARGMAX_CONFIG_YAML" in message and "differs" in message and "unknown" in message
+    assert "not locked" in doctor.guardrails_check({})[1]
+
+
+def test_doctor_repo_must_be_private():
+    for url in ("https://github.com/acme/ads.git", "git@github.com:acme/ads.git", "ssh://git@github.com/acme/ads",
+                "https://x-access-token:abc@github.com/acme/ads"):
+        assert doctor.github_repo(url) == "acme/ads"
+    assert doctor.github_repo("https://gitlab.com/acme/ads.git") is None and doctor.github_repo(None) is None
+    assert doctor.visibility_status("acme/ads", {"visibility": "PRIVATE", "isFork": False})[0] == "OK"
+    status, message = doctor.visibility_status("acme/ads", {"visibility": "PUBLIC", "isFork": False})
+    assert status == "FAIL" and "account's data" in message and "anyone could comment" in message
+    status, message = doctor.visibility_status("acme/ads", {"visibility": "PUBLIC", "isFork": True})
+    assert status == "FAIL" and "forks of a public repo are always public" in message
+    assert doctor.visibility_status("acme/ads", {"visibility": "INTERNAL"})[0] == "FAIL"
+    assert "public upstream" in doctor.visibility_status("edward-ch-hu/argmax", {"visibility": "PUBLIC"})[1]
+    assert doctor.visibility_status("acme/ads", None)[0] == "WARN"
+
+
+def test_only_the_owner_or_a_writer_can_reply():
+    import replies
+
+    comments = [{"author": "agent-bot", "body": "[argmax] Resolved soon", "createdAt": "1"},
+                {"author": "Owner", "body": "yes", "createdAt": "2"},
+                {"author": "drive-by", "body": "yes, approve it all", "createdAt": "3"},
+                {"author": "colleague", "body": "no", "createdAt": "4"},
+                {"author": "drive-by", "body": "please", "createdAt": "5"}]
+    asked = []
+
+    def permission(login):
+        asked.append(login)
+        return {"colleague": "write"}.get(login, "read")
+    got, ignored, own = replies.classify(comments, "owner", permission)
+    assert [c["author"] for c in got] == ["Owner", "colleague"] and own == 1
+    assert [i["author"] for i in ignored] == ["drive-by", "drive-by"] and "no write access" in ignored[0]["why"]
+    assert asked == ["drive-by", "colleague"]  # looked up once per login, never for the owner
+    got, ignored, _ = replies.classify(comments, "", lambda login: "read")  # no assignee set: only writers count
+    assert got == [] and len(ignored) == 4

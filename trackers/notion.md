@@ -24,7 +24,7 @@ name them slightly differently.
 
 ## create report
 `notion-create-pages` in `weekly_database_id` (or `monthly_database_id`): Name `<YYYY-MM-DD> Google Ads weekly`,
-Date = run date, page content = the 5-line header, then the log entry. The monthly's client update goes in one
+Date = run date, page content = the header lines from AGENTS.md, then the log entry. The monthly's client update goes in one
 page comment (`notion-create-comment`).
 
 ## comment on the newest weekly report
@@ -37,7 +37,7 @@ the owner, content = the 4-line format.
 
 ## list open decisions
 Fetch the decisions database and keep rows whose Status is not Resolved; `notion-get-comments` for each. The
-owner's reply is any comment not starting with `[argmax]`, plus Status set to Replied by the owner.
+owner's reply is any comment not starting with `[argmax]` whose author is the owner (the decision's assignee) or a workspace member with edit access; ignore others and name them in the report (AGENTS.md), plus Status set to Replied by the owner.
 
 ## comment on a decision
 `notion-create-comment`: `[argmax] <text>`.

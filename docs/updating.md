@@ -24,9 +24,21 @@ uv sync
 uv run pytest -q && uv run scripts/doctor.py --offline
 git push                                  # to YOUR origin only
 ```
-A copy made with "Use this template" has no shared history with upstream: the first time, use
-`git merge upstream/main --allow-unrelated-histories` and keep your side of any conflict in a "yours" file
-(there should be none). Later merges are ordinary.
+A copy made by cloning upstream (`BOOTSTRAP.md`, the default) shares its history, so this merge is ordinary.
+
+### A copy made with "Use this template"
+It has no shared history with upstream, so a plain `--allow-unrelated-histories` merge conflicts on every engine
+file. The first time, take upstream's side of every conflict, then check that nothing of yours was touched:
+```bash
+git status --porcelain                                    # must be empty before you start
+git fetch upstream
+git merge -X theirs --allow-unrelated-histories upstream/main -m "Merge upstream argmax (first time)"
+git diff --stat HEAD~1 HEAD -- argmax.yaml STRATEGY.md docs/ad_library.json log/ reports/ decisions/
+```
+The last command must print nothing: upstream never tracks those paths (they are gitignored there), so the merge
+cannot change them. If it lists anything, stop and restore it with `git checkout HEAD~1 -- <path>`, then commit.
+`-X theirs` also replaces any engine file you edited yourself with upstream's version: re-apply such edits by hand.
+After this first merge the histories are joined and later merges are ordinary.
 
 If a merge conflicts in an engine file you edited yourself, keep upstream's version unless you meant to fork the
 engine (`git checkout --theirs <file>`), then re-apply your change. Read the new `argmax.example.yaml` for new
@@ -36,6 +48,7 @@ config fields: they have defaults, so an old `argmax.yaml` keeps working; `docto
 > update argmax from upstream
 
 The agent should: check the working tree is clean; add `upstream` if missing (push disabled); fetch; show the new
-commits in a few lines; merge; run `uv sync`, `uv run pytest -q` and `uv run scripts/doctor.py --offline`; report
+commits in a few lines; merge (`git merge-base HEAD upstream/main` fails on a "Use this template" copy that was
+never merged: then use the first-time recipe above, including its check); run `uv sync`, `uv run pytest -q` and `uv run scripts/doctor.py --offline`; report
 any new config fields worth setting; and push only to `origin` after you confirm. It never pushes to upstream and
 never edits your config, strategy, logs or reports while updating.

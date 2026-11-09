@@ -30,11 +30,13 @@ Then `uv sync` and `uv run pytest -q` (proves the engine works here). Record `pr
 
 ## b. repo
 Explain: logs, reports and decisions will hold their ad account data, so argmax runs from their own PRIVATE copy;
-the public repo is only a template. Check `git remote -v`:
-- `origin` is a private repo of theirs (GitHub: `gh repo view --json visibility -q .visibility` says PRIVATE), and
-  `upstream` points at the public template with push DISABLED: done.
-- `origin` is the public template itself: they cloned upstream directly. Follow `BOOTSTRAP.md` steps 2 to 4 to make
-  the private copy (create the private repo, repoint `origin`, add a read-only `upstream`).
+the public repo is only where engine updates come from. Check `git remote -v`:
+- `origin` is a private repo of theirs (GitHub: `gh repo view --json visibility,isFork` says PRIVATE and not a
+  fork), and `upstream` points at the public repo with push DISABLED: done.
+- `origin` is the public repo itself: they cloned upstream directly. Follow `BOOTSTRAP.md` steps 2 to 4: rename
+  `origin` to `upstream` (push DISABLED) and create the private `origin` from this folder.
+- `origin` is a GitHub fork: forks of a public repo are always public. Make a new private repo from this folder
+  (`git remote rename origin old-fork`, then `BOOTSTRAP.md` step 3 (a)), and tell them to delete the fork.
 - Local only is fine too (scheduling is then by hand or local cron). Record the choice in the note.
 
 ## c. google_ads_api

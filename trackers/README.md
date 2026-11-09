@@ -14,7 +14,7 @@ each backend file says exactly how to do them. The agent reads `trackers/<tracke
 ## The verbs (every backend implements all of them)
 
 1. **create report**: one item per weekly or monthly run. Title `<YYYY-MM-DD> Google Ads weekly` or
-   `<YYYY-MM> Google Ads monthly`; body = the 5-line header from AGENTS.md, then the log entry.
+   `<YYYY-MM> Google Ads monthly`; body = the header lines from AGENTS.md, then the log entry.
 2. **comment on the newest weekly report**: the daily scout's NOTIFY lines.
 3. **create decision**: title `Needs yes: ...`, `Unless you say no: ...` or `Done, reply reverse to undo: ...`; a
    due date; assigned to the owner; body = the 4-line format:

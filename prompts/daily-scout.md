@@ -8,7 +8,8 @@ workflow commits the runtime files after you finish. Everything else stays the s
 1. Setup: install uv if missing (`pip install -q uv`), then `uv sync`. Google Ads credentials are in GOOGLE_ADS_*
    environment variables (or google-ads.yaml); the config is `argmax.yaml` (or ARGMAX_CONFIG / ARGMAX_CONFIG_YAML).
    Run `uv run scripts/doctor.py --offline`. If config or STRATEGY.md is missing or onboarding is not complete,
-   stop: print that setup is incomplete and, if the tracker works, comment that on the newest weekly report.
+   stop: print that setup is incomplete and, if the tracker works, comment that on the newest weekly report. If the
+   repo line FAILs (the repo is public), stop and print only that line: write nothing to the repo or the tracker.
 2. `uv run scripts/daily_scout.py`. It changes nothing in Google Ads. It adds yesterday to
    reports/daily/week-<Monday>.json, saves the day's clicks for ref code matching (when ref codes are on),
    backfills a missed earlier day (MISSED), and prints NOTIFY lines (ALERT, NEWS, WIN, REF, REF_GAP, MISSED) or QUIET.
