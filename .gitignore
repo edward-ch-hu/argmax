@@ -12,8 +12,9 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 
-# --- Your account's files. In a PRIVATE fork that runs the cloud routines, delete this block so the routines can
-# --- commit their memory (logs, ledger, daily files, decisions) and read your config and strategy. Never in public.
+# --- Your account's files. Ignored so they never land in the public template by accident. Your PRIVATE copy
+# --- tracks them on purpose with `git add -f <path>` (onboarding and the routines do this); leave this block as it
+# --- is, so pulling engine updates from upstream never conflicts with it.
 adgrad.yaml
 STRATEGY.md
 docs/ad_library.json
@@ -23,3 +24,4 @@ reports/*
 !reports/.gitkeep
 decisions/*
 !decisions/.gitkeep
+.adgrad/

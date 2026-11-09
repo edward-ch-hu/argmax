@@ -14,6 +14,9 @@ funnel(): lead_to_trial = leads that reached a trial, trial_to_win = won / decid
 lead_to_win = won / leads.
 
 Usage: uv run scripts/crm.py [--since YYYY-MM-DD]   (default: last 7 days) prints a JSON summary
+       uv run scripts/crm.py inspect (--csv PATH | --sheet ID [--range "Sheet1!A1:Z"]) [--status-column NAME]
+           for onboarding, without adgrad.yaml: prints the header row and the distinct values (with counts) of the
+           status column only. Never prints any other cell, so no names or emails.
 """
 import csv
 import hashlib
@@ -232,7 +235,39 @@ def summary(rows, since, now=None):
     return out
 
 
+def inspect(values, status_column=None):
+    """{"headers": [...], "statuses": {value: count}} from raw rows: the header row and one column only (pure)."""
+    if not values:
+        return {"headers": [], "rows": 0, "statuses": {}}
+    header = [str(h) for h in values[0]]
+    out = {"headers": header, "rows": max(len(values) - 1, 0), "statuses": {}}
+    i = header_index(header, status_column)
+    if status_column and i is None:
+        out["error"] = f"no column '{status_column}' in the header row"
+    elif i is not None:
+        for v in values[1:]:
+            value = str(v[i]).strip() if i < len(v) else ""
+            if value:
+                out["statuses"][value] = out["statuses"].get(value, 0) + 1
+    return out
+
+
+def inspect_main(args):
+    opt = lambda name: args[args.index(name) + 1] if name in args and args.index(name) + 1 < len(args) else None  # noqa: E731
+    if opt("--csv"):
+        with Path(opt("--csv")).open(encoding="utf-8-sig", newline="") as f:
+            values = list(csv.reader(f))
+    elif opt("--sheet"):
+        values = ads_client.sheet_values(opt("--sheet"), opt("--range") or "Sheet1!A1:Z")
+    else:
+        sys.exit(__doc__)
+    print(json.dumps(inspect(values, opt("--status-column")), ensure_ascii=False, indent=1))
+
+
 def main():
+    if sys.argv[1:2] == ["inspect"]:
+        inspect_main(sys.argv[2:])
+        return
     if not enabled():
         print(json.dumps({"crm": "none", "note": "crm.source is none in adgrad.yaml: no lead or win data"}))
         return
