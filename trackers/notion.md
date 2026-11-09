@@ -36,8 +36,10 @@ it), then `notion-create-comment` on the newest page: `[argmax] Daily scout <dat
 the owner, content = the 4-line format.
 
 ## list open decisions
-Fetch the decisions database and keep rows whose Status is not Resolved; `notion-get-comments` for each. The
-owner's reply is any comment not starting with `[argmax]` whose author is the owner (the decision's assignee) or a workspace member with edit access; ignore others and name them in the report (AGENTS.md), plus Status set to Replied by the owner.
+Fetch the decisions database and keep rows whose Status is not Resolved; `notion-get-comments` for each. The owner's
+reply is any comment not starting with `[argmax]` whose author is the owner (the decision's assignee) or a workspace
+member with edit access; ignore others and name them in the report (AGENTS.md), plus Status set to Replied by the
+owner.
 
 ## comment on a decision
 `notion-create-comment`: `[argmax] <text>`.

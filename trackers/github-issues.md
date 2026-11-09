@@ -25,10 +25,11 @@ gh label create owner-replied        --color 5319E7 --description "the owner ans
 gh issue create --title "<YYYY-MM-DD> Google Ads weekly" --label argmax:weekly \
   --assignee "<assignee>" --body-file reports/weekly-issue.md
 ```
-(`argmax:monthly` and `<YYYY-MM> Google Ads monthly` for the monthly.) Write the body to `reports/weekly-issue.md` first (headless
-runs may only write under log/, reports/, decisions/, .argmax/tmp/ and STRATEGY.md): the
-header lines from AGENTS.md, then the log entry. Close the previous weekly report issue with `gh issue close <n>` so only the
-newest stays open. The monthly's client message goes in one extra comment: `gh issue comment <n> --body-file <f>`.
+(`argmax:monthly` and `<YYYY-MM> Google Ads monthly` for the monthly.) Write the body to `reports/weekly-issue.md`
+first (headless runs may only write under log/, reports/, decisions/, .argmax/tmp/ and STRATEGY.md): the header
+lines from AGENTS.md, then the log entry. Close the previous weekly report issue with `gh issue close <n>` so only
+the newest stays open. The monthly's client message goes in one extra comment: `gh issue comment <n> --body-file
+<f>`.
 
 ## comment on the newest weekly report
 ```bash

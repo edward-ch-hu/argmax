@@ -27,8 +27,8 @@ the owner, description = the header lines from AGENTS.md, then the log entry (ma
 comment with `clickup_create_comment`.
 
 ## comment on the newest weekly report
-`clickup_filter_tasks` on `weekly_list_id`, newest first; `clickup_create_comment` on the first task:
-`[argmax] Daily scout <data date> (run <today>): ...`.
+`clickup_filter_tasks` on `weekly_list_id`, newest first; `clickup_create_comment` on the first task: `[argmax]
+Daily scout <data date> (run <today>): ...`.
 
 ## create decision
 `clickup_create_task` in `decisions_list_id`: name with the kind prefix, `due_date` = the decide-by date, assignee

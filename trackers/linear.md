@@ -35,7 +35,8 @@ decide-by date, assignee the owner, description = the 4-line format.
 
 ## list open decisions
 List issues with label `argmax-decision` that are not in a completed or canceled state, with their comments. The
-owner's reply is any comment not starting with `[argmax]` whose author is the owner (the decision's assignee) or a workspace member with edit access; ignore others and name them in the report (AGENTS.md).
+owner's reply is any comment not starting with `[argmax]` whose author is the owner (the decision's assignee) or a
+workspace member with edit access; ignore others and name them in the report (AGENTS.md).
 
 ## comment on a decision
 Create a comment: `[argmax] <text>`.

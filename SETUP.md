@@ -4,12 +4,15 @@ The fastest path is your agent: say "onboard me" (`prompts/onboarding.md`). This
 `uv run scripts/doctor.py` shows what is still missing at any point.
 
 ## 0. Your private copy
-argmax keeps logs, reports and decisions about your account in the repo, so run it from a private copy: clone
-the public repo, keep it as a read-only `upstream`, and push to a new private repo (`BOOTSTRAP.md`):
-`git clone https://github.com/edward-ch-hu/argmax my-argmax && cd my-argmax && git remote rename origin upstream &&
-git remote set-url --push upstream DISABLED && gh repo create my-argmax --private --source . --remote origin --push`.
-Never a GitHub fork (always public). The shared history makes updates a plain merge (`docs/updating.md`). Install `git`, `uv` (https://docs.astral.sh/uv/) and,
-for GitHub, `gh`. Then `uv sync && uv run pytest -q`.
+argmax keeps logs, reports and decisions about your account in the repo, so run it from a private copy: clone the
+public repo, keep it as a read-only `upstream`, and push to a new private repo (`BOOTSTRAP.md`):
+```bash
+git clone https://github.com/edward-ch-hu/argmax my-argmax && cd my-argmax
+git remote rename origin upstream && git remote set-url --push upstream DISABLED
+gh repo create my-argmax --private --source . --remote origin --push
+```
+Never a GitHub fork (always public). The shared history makes updates a plain merge (`docs/updating.md`). Install
+`git`, `uv` (https://docs.astral.sh/uv/) and, for GitHub, `gh`. Then `uv sync && uv run pytest -q`.
 
 ## 1. Google Ads API access
 Since September 9, 2026 you need no developer token and no manager account: API access belongs to the Google Cloud

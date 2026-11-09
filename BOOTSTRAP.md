@@ -46,10 +46,11 @@ git remote add origin <their-private-url> && git push -u origin HEAD
 ```
 (c) local only: nothing more; there is no `origin`.
 
-Alternative, not recommended: GitHub's "Use this template" button, where offered (or `gh repo create --template`). The copy then
-has no shared history with upstream, so every engine update needs `git merge -X theirs --allow-unrelated-histories`
-and a check of your files (`docs/updating.md`), and `gh repo create --template ... --clone` can clone before GitHub
-has finished copying the files (an empty checkout). Use it only if the user insists.
+Alternative, not recommended: GitHub's "Use this template" button, where offered (or `gh repo create --template`).
+The copy then has no shared history with upstream, so every engine update needs `git merge -X theirs
+--allow-unrelated-histories` and a check of your files (`docs/updating.md`), and `gh repo create --template ...
+--clone` can clone before GitHub has finished copying the files (an empty checkout). Use it only if the user
+insists.
 
 ## 4. Check the remotes
 `git remote -v`: `origin` is the private copy (or absent for local only), `upstream` is the public repo with push
