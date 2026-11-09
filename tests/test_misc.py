@@ -59,6 +59,23 @@ def test_strategy_templates_pass_and_targets_sum():
     assert any("dashboards" in w for w in warnings)
 
 
+def test_strategy_goal_fit():
+    read = lambda name: (ROOT / "strategies" / f"{name}.md").read_text()  # noqa: E731
+    for path in [ROOT / "STRATEGY.example.md", *sorted((ROOT / "strategies").glob("*.md"))]:
+        if path.name != "README.md":
+            assert strategy_check.fits_goals(path.read_text()), path.name  # every template declares its goals
+    assert strategy_check.fits_goals(read("ecommerce-roas")) == {"roas", "sales"}
+    assert strategy_check.goal_fit(read("b2b-lead-gen"), "leads")[0] == "OK"
+    status, message = strategy_check.goal_fit(read("b2b-lead-gen"), "roas")
+    assert status == "WARN" and "'roas'" in message and "leads" in message
+    assert strategy_check.goal_fit(read("ecommerce-roas"), "roas")[0] == "OK"
+    assert strategy_check.goal_fit(read("local-services"), "calls")[0] == "OK"
+    assert strategy_check.goal_fit(read("brand-defense"), "awareness")[0] == "OK"  # "any"
+    assert strategy_check.goal_fit("## Goal\nno line here", "leads")[0] == "WARN"
+    assert strategy_check.goal_fit(read("b2b-lead-gen"), None)[0] == "PENDING"
+    assert strategy_check.fits_goals("**Fits goals:** `calls`, leads") == {"calls", "leads"}
+
+
 def test_monthly_lines_and_history(use):
     use(**{"crm.source": "csv", "crm.csv_path": str(ROOT / "docs/crm.example.csv")})
     import crm
@@ -69,6 +86,9 @@ def test_monthly_lines_and_history(use):
     assert monthly_report.line(jan) == ("January 2026: spent USD 1,000, 1 new customer, at least new MRR 400, "
                                         "first-month ROI 0.4x")
     assert monthly_report.line(hist[0]) == "December 2025: spent USD 0, 0 new customers"
+    eur = use(**{"crm.source": "csv", "crm.csv_path": str(ROOT / "docs/crm.example.csv"),
+                 "business.deal_currency": "EUR", "crm.deal_value_fx": 1.1})
+    assert "at least new MRR EUR 400, first-month ROI 0.4x" in monthly_report.line(jan, cfg=eur)
     summary = monthly_report.client_summary(hist, "2026-01")
     assert summary["year_to_date"].startswith("2026 to date (from January)")
     assert monthly_report.history_start("2026-01") == "2025-02"

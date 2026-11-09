@@ -1,5 +1,5 @@
 """List the Google Ads accounts your credentials can reach, with name, currency, time zone and whether each is a
-manager. Needs only google-ads.yaml (or GOOGLE_ADS_* env vars), not adgrad.yaml, so onboarding can pick the
+manager. Needs only google-ads.yaml (or GOOGLE_ADS_* env vars), not argmax.yaml, so onboarding can pick the
 account and read its currency and time zone from the API instead of asking. Read-only.
 
 Usage: uv run scripts/accounts.py [--json]

@@ -3,15 +3,19 @@
 For a fresh account (or a messy inherited one) with no trustworthy history. The loop: clean data first, discover
 broadly on Search, tighten fast on what the search terms show, and only then decide what wins.
 
+Fits goals: leads, sales, roas, calls
+
 Config to match: `guard.expected_bidding: MANUAL_CPC`, `guard.search_networks_only: true`, a conservative
 `limits.daily_budget_cap`, `winning_topics: []` at first (no daily stepping until a topic shows deals),
 `ad_tests.enabled: false` until groups reach the impression floor.
 
 ## Goal
-Learn which searches bring real customers within 6 to 8 weeks, spending as little as possible on junk while doing it.
+The business goal lives in the profile in `argmax.yaml` (`business.goal`, `business.goal_description`); this
+section only says how this strategy pursues it: learn which searches bring real customers within 6 to 8 weeks,
+spending as little as possible on junk while doing it.
 
 ## Success signal
-- Counts: real leads or sales from the CRM or the store, however few.
+- Counts: `business.primary_kpi` (real leads or sales from the CRM or the store), however few.
 - Leading signals only: `conversions.lead_signals`.
 - Noise, never judged on: everything else, including Google's auto-created engagement goals.
 

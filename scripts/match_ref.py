@@ -113,7 +113,7 @@ def match(client, rows=None):
 
 def main():
     if not enabled():
-        sys.exit("ref codes are off (ref_codes.enabled, and a CRM source, in adgrad.yaml)")
+        sys.exit("ref codes are off (ref_codes.enabled, and a CRM source, in argmax.yaml)")
     client = ads_client.load()
     done = collect_missing(client, str(ads_client.today() - timedelta(days=1)))
     print(f"Collected {len(done)} day(s), {sum(n for _, n in done)} clicks")

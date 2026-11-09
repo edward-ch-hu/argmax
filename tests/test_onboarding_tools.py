@@ -35,6 +35,26 @@ def test_init_build_with_crm_and_site():
     assert cfg.crm.columns["name"] is None
 
 
+def test_init_build_business_profile():
+    c = init.build(ANSWERS, EXAMPLE)
+    assert "North America" not in yaml.safe_dump(c) and "Demo Request" not in yaml.safe_dump(c)
+    cfg = init.validate(c)
+    assert cfg.business.goal is None and cfg.business.deal_currency == "EUR"  # not answered yet: account currency
+    assert cfg.website.locales == ["en"] and cfg.ad_tests.campaign_locales == {}
+    answers = dict(ANSWERS, business={"goal": "sales", "report_language": "German", "deal_currency": "CHF",
+                                      "markets": [{"name": "DACH", "countries": ["DE", "AT", "CH"], "language": "de",
+                                                   "campaign_prefix": "DE - "}]},
+                   crm={"source": "csv", "csv_path": "orders.csv", "columns": {"lead_date": "Date", "status": "State"},
+                        "statuses": {"won": ["Paid"]}, "deal_value_fx": 1.05})
+    cfg = init.validate(init.build(answers, EXAMPLE))
+    assert cfg.business.primary_kpi == init.DEFAULT_KPI["sales"] and cfg.business.kpi_conversions == ["Purchase"]
+    assert cfg.website.locales == ["de"] and cfg.ad_tests.campaign_locales == {"DE - ": "de"}
+    assert cfg.report.client_update["language"] == "German" and cfg.crm.deal_value_fx == 1.05
+    with pytest.raises(config.ConfigError) as e:  # CHF deals in a EUR account need an fx rate
+        init.validate(init.build(dict(answers, crm=dict(answers["crm"], deal_value_fx=None)), EXAMPLE))
+    assert "crm.deal_value_fx: needed" in str(e.value)
+
+
 def test_init_build_invalid_answers_fail():
     with pytest.raises(config.ConfigError):
         init.validate(init.build(dict(ANSWERS, winning_topics=["nope"]), EXAMPLE))
@@ -62,6 +82,20 @@ def test_onboarding_state(tmp_path):
         onboarding.set_step(again, "repo", "finished")
     with pytest.raises(ValueError):
         onboarding.set_step(again, "repo", "done", "refresh_token 1//0gABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+
+def test_doctor_business():
+    assert doctor.business_status(make(**{"business.goal": None}))[0] == "PENDING"
+    status, message = doctor.business_status(make())
+    assert status == "OK" and "goal leads" in message and "North America (US/CA, ads in en)" in message
+    assert "reports in English" in message and message.endswith("deals in USD")
+    cfg = make(**{"business.deal_currency": "EUR", "crm.source": "csv", "crm.deal_value_fx": 1.08})
+    assert "deals in EUR (x 1.08 to USD)" in doctor.business_status(cfg)[1]
+
+
+def test_onboarding_has_business_step_after_account():
+    steps = list(onboarding.STEPS)
+    assert steps.index("business") == steps.index("account") + 1
 
 
 def test_doctor_credentials():

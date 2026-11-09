@@ -74,24 +74,97 @@ def test_missing_file_message(tmp_path, monkeypatch):
 
 def test_get_exits_with_message(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("ADGRAD_CONFIG", raising=False)
-    monkeypatch.delenv("ADGRAD_CONFIG_YAML", raising=False)
+    monkeypatch.delenv("ARGMAX_CONFIG", raising=False)
+    monkeypatch.delenv("ARGMAX_CONFIG_YAML", raising=False)
     config.activate(None)
     with pytest.raises(SystemExit) as e:
         config.get()
-    assert "adgrad config problem" in str(e.value)
+    assert "argmax config problem" in str(e.value)
 
 
 def test_env_sources_and_overrides(tmp_path):
-    text = (ROOT / "adgrad.example.yaml").read_text()
-    cfg = config.load(env={"ADGRAD_CONFIG_YAML": text, "ADGRAD_CUSTOMER_ID": "999-888-7777"})
+    text = (ROOT / "argmax.example.yaml").read_text()
+    cfg = config.load(env={"ARGMAX_CONFIG_YAML": text, "ARGMAX_CUSTOMER_ID": "999-888-7777"})
     assert cfg.account.customer_id == "9998887777"
     path = tmp_path / "c.yaml"
     path.write_text(text)
-    assert config.load(env={"ADGRAD_CONFIG": str(path)}).account.name == "Acme Analytics"
+    assert config.load(env={"ARGMAX_CONFIG": str(path)}).account.name == "Acme Analytics"
 
 
 def test_invalid_yaml(tmp_path):
     with pytest.raises(config.ConfigError) as e:
-        config.load(env={"ADGRAD_CONFIG_YAML": "a: [unclosed"})
+        config.load(env={"ARGMAX_CONFIG_YAML": "a: [unclosed"})
     assert "not valid YAML" in str(e.value)
+
+
+def test_business_profile_and_derived_values():
+    cfg = make()
+    assert cfg.business.goal == "leads" and cfg.business.primary_kpi == "CRM wins"
+    assert cfg.business.deal_currency == "USD" and cfg.crm.deal_value_fx == 1.0
+    assert cfg.website.locales == ["en"]  # derived from business.markets
+    assert cfg.ad_tests.campaign_locales == {"US - ": "en"} and cfg.ad_tests.default_locale == "en"
+    assert cfg.report.client_update["language"] == "English"  # from business.report_language
+
+
+def test_business_markets_feed_locales():
+    markets = [{"name": "DACH", "countries": ["DE", "AT", "CH"], "language": "de", "campaign_prefix": "DE - "},
+               {"name": "Taiwan", "countries": ["TW"], "language": "zh-tw"},
+               {"name": "UK", "countries": ["GB"], "language": "en", "campaign_prefix": "UK - "}]
+    cfg = make(**{"business.markets": markets, "business.report_language": "German"})
+    assert cfg.website.locales == ["de", "zh-tw", "en"] and cfg.ad_tests.default_locale == "de"
+    assert cfg.ad_tests.campaign_locales == {"DE - ": "de", "UK - ": "en"}
+    assert cfg.report.client_update["language"] == "German"
+    cfg = make(**{"business.markets": markets, "website.locales": ["de", "zh-tw", "en", "fr"],
+                  "ad_tests.campaign_locales": {"FR - ": "fr"}, "report.client_update.language": "French"})
+    assert cfg.ad_tests.campaign_locales == {"DE - ": "de", "UK - ": "en", "FR - ": "fr"}
+    assert cfg.report.client_update["language"] == "French"
+
+
+def test_business_is_optional_until_onboarding():
+    data = copy.deepcopy(EXAMPLE)
+    del data["business"]
+    cfg = config.load_dict(data)
+    assert cfg.business.goal is None and cfg.business.markets == []
+    assert cfg.business.deal_currency == "USD" and cfg.business.kpi_conversions == ["Demo Request", "Signup"]
+    assert cfg.website.locales == ["en"] and cfg.report.client_update["language"] == "English"
+
+
+def test_deal_currency_and_fx():
+    csv = {"crm.source": "csv"}
+    cfg = make(**csv, **{"business.deal_currency": "EUR", "crm.deal_value_fx": 1.08})
+    assert cfg.crm.deal_value_fx == 1.08
+    assert make(**{"business.deal_currency": "EUR"}).crm.deal_value_fx == 1.0  # no CRM: fx unused
+    with pytest.raises(config.ConfigError) as e:
+        make(**csv, **{"business.deal_currency": "EUR"})
+    assert "crm.deal_value_fx: needed because business.deal_currency (EUR)" in str(e.value)
+    with pytest.raises(config.ConfigError) as e:
+        make(**csv, **{"crm.deal_value_fx": 1.3})
+    assert "crm.deal_value_fx: must be 1 when business.deal_currency equals" in str(e.value)
+
+
+@pytest.mark.parametrize("overrides, message", [
+    ({"business.goal": "profit"}, "business.goal: must be one of leads, sales, roas, calls, awareness"),
+    ({"business.primary_kpi": None}, "business.primary_kpi: needed once business.goal is set"),
+    ({"business.primary_kpi": "a\nb"}, "business.primary_kpi: must be one line"),
+    ({"business.markets": []}, "business.markets: needed once business.goal is set"),
+    ({"business.markets": "US"}, "business.markets: must be a list"),
+    ({"business.kpi_conversions": ["Chat Widget Open"]}, "'Chat Widget Open' is not in conversions.lead_signals"),
+    ({"business.deal_currency": "usd"}, "business.deal_currency"),
+    ({"business.report_language": ""}, "business.report_language"),
+    ({"business.markets": [{"name": "US", "countries": ["US"], "language": "English"}]}, "business.markets.US.language"),
+    ({"business.markets": [{"name": "US", "countries": [], "language": "en"}]}, "business.markets.US.countries"),
+    ({"business.markets": [{"countries": ["US"], "language": "en"}]}, "business.markets[0].name: needed"),
+    ({"business.markets": [{"name": "US", "countries": ["US"], "language": "en", "lang": "en"}]}, "unknown key(s) lang"),
+    ({"business.markets": [{"name": "A", "countries": ["US"], "language": "en", "campaign_prefix": "X"},
+                           {"name": "A", "countries": ["CA"], "language": "fr", "campaign_prefix": "X"}]},
+     "two markets have this name"),
+    ({"business.markets": [{"name": "A", "countries": ["US"], "language": "en", "campaign_prefix": "X"},
+                           {"name": "B", "countries": ["CA"], "language": "fr", "campaign_prefix": "X"}]},
+     "'X' is used by two markets"),
+    ({"website.locales": ["de"]}, "website.locales: misses 'en'"),
+    ({"website.locales": ["en", "de"], "ad_tests.campaign_locales": {"US - ": "de"}}, "disagrees with business.markets"),
+])
+def test_invalid_business_fails_clearly(overrides, message):
+    with pytest.raises(config.ConfigError) as e:
+        make(**overrides)
+    assert message in str(e.value)

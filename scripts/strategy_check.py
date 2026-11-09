@@ -5,6 +5,8 @@ Required sections (level-2 headings, in any order; extra sections are fine):
 Topic spend targets: a markdown table whose first column is the topic and second the target share. Every share is
 a percentage (like 45 or 45%) or TBD. When none is TBD they must sum to 100; mixing numbers and TBD fails. Topics in
 the table should be config topics (or "other"); unknown names are warnings, not failures.
+A "Fits goals: leads, calls" line (or "Fits goals: any") names the business.goal values the strategy is written
+for; a config goal outside it, or no such line, is a warning (doctor.py shows it as "goal fit").
 
 Usage: uv run scripts/strategy_check.py [STRATEGY.md]
 """
@@ -46,6 +48,32 @@ def targets(body):
     return out
 
 
+GOAL_WORDS = ("leads", "sales", "roas", "calls", "awareness", "any")  # config.GOALS plus "any"
+GOALS_LINE = re.compile(r"^\W*fits goals\W*:\s*(.+)$", re.IGNORECASE | re.MULTILINE)
+
+
+def fits_goals(text):
+    """The goals a strategy declares on its "Fits goals:" line, as a set ({"any"} for any), or None without one."""
+    m = GOALS_LINE.search(text)
+    if not m:
+        return None
+    return {w for w in re.findall(r"[a-z]+", m[1].lower()) if w in GOAL_WORDS} or None
+
+
+def goal_fit(text, goal):
+    """(status, message) for business.goal against the strategy's "Fits goals" line. Status OK, WARN or PENDING."""
+    if goal is None:
+        return "PENDING", "business.goal not set yet (onboarding step e, business)"
+    fits = fits_goals(text)
+    if fits is None:
+        return "WARN", (f"STRATEGY.md has no \"Fits goals:\" line, so business.goal '{goal}' is not checked "
+                        "against it (add one, e.g. \"Fits goals: leads\")")
+    if "any" in fits or goal in fits:
+        return "OK", f"business.goal '{goal}' fits the strategy ({', '.join(sorted(fits))})"
+    return "WARN", (f"business.goal is '{goal}' but STRATEGY.md is written for {', '.join(sorted(fits))}: pick a "
+                    "matching template in strategies/ or change the goal")
+
+
 def check(text, topics=None):
     """(fails, warnings) for a STRATEGY.md text. topics: config topic names, for warnings."""
     fails, warnings = [], []
@@ -70,7 +98,7 @@ def check(text, topics=None):
         for name, _, _ in rows:
             base = name.split(" ")[0]
             if base not in topics and base != "other":
-                warnings.append(f"Topic spend targets: '{name}' is not a topic in adgrad.yaml")
+                warnings.append(f"Topic spend targets: '{name}' is not a topic in argmax.yaml")
     return fails, warnings
 
 
@@ -81,10 +109,16 @@ def main():
     import config
 
     try:
-        topics = set(config.load().topics)
-    except config.ConfigError:  # the check works without a config; it only skips topic name warnings
-        topics = None
-    fails, warnings = check(path.read_text(encoding="utf-8"), topics)
+        cfg = config.load()
+        topics, goal = set(cfg.topics), cfg.business.goal
+    except config.ConfigError:  # the check works without a config; it only skips topic name and goal warnings
+        topics = goal = None
+    text = path.read_text(encoding="utf-8")
+    fails, warnings = check(text, topics)
+    if goal is not None:
+        status, message = goal_fit(text, goal)
+        if status == "WARN":
+            warnings.append(message)
     for w in warnings:
         print(f"WARN   {w}")
     for f in fails:

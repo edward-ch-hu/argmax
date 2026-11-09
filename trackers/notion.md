@@ -3,7 +3,7 @@
 Reports and decisions are pages in three Notion databases. The owner replies with a page comment and can set a
 decision's Status to "Replied".
 
-Config (`adgrad.yaml`):
+Config (`argmax.yaml`):
 ```yaml
 tracker:
   backend: notion
@@ -29,7 +29,7 @@ page comment (`notion-create-comment`).
 
 ## comment on the newest weekly report
 Query the weekly database sorted by Date descending (`notion-fetch` on the database, or `notion-search` within
-it), then `notion-create-comment` on the newest page: `[adgrad] Daily scout <data date> (run <today>): ...`.
+it), then `notion-create-comment` on the newest page: `[argmax] Daily scout <data date> (run <today>): ...`.
 
 ## create decision
 `notion-create-pages` in `decisions_database_id`: Name with the kind prefix, Due, Kind, Status Waiting, Assignee
@@ -37,13 +37,13 @@ the owner, content = the 4-line format.
 
 ## list open decisions
 Fetch the decisions database and keep rows whose Status is not Resolved; `notion-get-comments` for each. The
-owner's reply is any comment not starting with `[adgrad]`, plus Status set to Replied by the owner.
+owner's reply is any comment not starting with `[argmax]`, plus Status set to Replied by the owner.
 
 ## comment on a decision
-`notion-create-comment`: `[adgrad] <text>`.
+`notion-create-comment`: `[argmax] <text>`.
 
 ## set status
 `notion-update-page` Status: Waiting, Replied or Resolved.
 
 ## resolve a decision
-`notion-create-comment` `[adgrad] Resolved <date>: <how>`, then `notion-update-page` Status Resolved.
+`notion-create-comment` `[argmax] Resolved <date>: <how>`, then `notion-update-page` Status Resolved.

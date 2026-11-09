@@ -174,10 +174,10 @@ def plan(client, day):
 def main():
     cfg = config.get()
     if not cfg.stepping.enabled:
-        print("stepping.enabled is false in adgrad.yaml: no daily bid steps")
+        print("stepping.enabled is false in argmax.yaml: no daily bid steps")
         return
     if not cfg.winning_topics:
-        print("winning_topics is empty in adgrad.yaml: no group to step")
+        print("winning_topics is empty in argmax.yaml: no group to step")
         return
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     yesterday = str(ads_client.today() - timedelta(days=1))

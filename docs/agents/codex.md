@@ -1,4 +1,4 @@
-# Running adgrad with OpenAI Codex CLI
+# Running argmax with OpenAI Codex CLI
 
 Facts checked against OpenAI's docs and the openai/codex source on 2026-11-09 (links inline; the docs moved to
 learn.chatgpt.com). If a flag is rejected, `codex exec --help` is the reference.
@@ -15,11 +15,11 @@ Source: https://github.com/openai/codex, https://learn.chatgpt.com/docs/auth.md.
 ## How it picks up the rules
 Codex reads `AGENTS.md` natively, from the git root down to the working directory
 (https://learn.chatgpt.com/docs/agent-configuration/agents-md). Nothing to configure. It ignores `CLAUDE.md`,
-which only points to `AGENTS.md` anyway. adgrad's `AGENTS.md` is well under Codex's default 32 KiB limit.
+which only points to `AGENTS.md` anyway. argmax's `AGENTS.md` is well under Codex's default 32 KiB limit.
 
 ## Onboard and run by hand
 ```bash
-cd your-private-adgrad
+cd your-private-argmax
 codex
 > onboard me
 > run the weekly review
@@ -54,15 +54,15 @@ the network setting lets the scripts reach the Google Ads API (network is off by
 inside a throwaway VM. Useful extras: `--json`, `-o last-message.txt`, `-m <model>`.
 Source: https://learn.chatgpt.com/docs/non-interactive-mode, https://learn.chatgpt.com/docs/agent-approvals-security.md.
 Whether the sandbox lets `git push` reach your remote depends on your setup; the GitHub Actions example lets the
-workflow commit instead (`ADGRAD_COMMIT=workflow`).
+workflow commit instead (`ARGMAX_COMMIT=workflow`).
 
 ## Scheduling
-**GitHub Actions (recommended).** `.github/workflows/adgrad-weekly-codex.yml.example` uses `openai/codex-action@v1`
+**GitHub Actions (recommended).** `.github/workflows/argmax-weekly-codex.yml.example` uses `openai/codex-action@v1`
 (inputs `prompt-file`, `openai-api-key`, `sandbox`, `codex-args`; https://learn.chatgpt.com/docs/github-action.md).
 Copy it to `.yml`, add the secrets, duplicate for the daily and monthly routines.
 
 **cron on your machine.**
-`0 9 * * 1 cd /path/to/your-private-adgrad && codex exec --sandbox workspace-write -c 'sandbox_workspace_write.network_access=true' "$(cat prompts/weekly-review.md)" >> log/cron.txt 2>&1`
+`0 9 * * 1 cd /path/to/your-private-argmax && codex exec --sandbox workspace-write -c 'sandbox_workspace_write.network_access=true' "$(cat prompts/weekly-review.md)" >> log/cron.txt 2>&1`
 
 **Codex app scheduled tasks.** The ChatGPT/Codex desktop and web apps have scheduled tasks
 (https://learn.chatgpt.com/docs/automations.md); desktop tasks run locally while the app is open. The CLI has no

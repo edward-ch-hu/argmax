@@ -1,26 +1,29 @@
-# adgrad
+# argmax
 
 > **Set up in one message.** Paste this into Claude Code, Codex or Grok:
 >
 > ```
-> Set up adgrad for me from REPO_URL. Follow its BOOTSTRAP.md.
+> Set up argmax for me from https://github.com/edward-ch-hu/argmax. Follow its BOOTSTRAP.md.
 > ```
 >
 > Your agent makes your own private copy, clones it, and walks you through onboarding.
-> (`REPO_URL` is this repo's URL; it is the only place it appears.)
 
 **An AI agent that runs your Google Ads account inside hard guardrails.**
 
-AdaGrad takes adaptive gradient steps on parameters. adgrad takes adaptive gradient steps on *spend*: every day
-and every week it nudges bids, budgets and keywords toward whatever actually produces deals, with step sizes and
-limits you set, a ledger of every move, and an approval inbox for anything bigger. You stop opening Google Ads;
-you read one weekly report and answer a few "yes / no" decisions.
+Your ad account has one job: find the spend that maximises real deals. argmax is that search, run every day.
+It keeps moving bids, budgets and keywords toward the argument that wins (the topics, terms and campaigns that
+close deals in your CRM, not the ones that rack up clicks), inside step sizes and caps you set, with a ledger of
+every move and an approval inbox for anything bigger. You stop opening Google Ads; you read one weekly report and
+answer a few "yes / no" decisions.
 
 ```
-spend[t+1] = clip(spend[t] + lr * grad(deals | spend), guardrails)
+spend* = argmax_{spend in guardrails} E[deals | spend]
 ```
 
-This public repo is a **GitHub template**: you run adgrad from your own private copy, because its logs and reports
+The guardrails are the constraint set, and they are not negotiable: the optimiser is an LLM, the constraints are
+plain Python.
+
+This public repo is a **GitHub template**: you run argmax from your own private copy, because its logs and reports
 hold your account's data.
 
 ## What it does
@@ -54,7 +57,7 @@ The agent is clever; the guardrails are dumb, deterministic Python, and they win
 | Approval inbox: "Needs yes", "Unless you say no", "Done, reply reverse to undo" | your tracker | silence has a defined meaning |
 | Privacy: no CRM names or emails anywhere, only fingerprints | `crm.py`, `check_external.py` | client update refused |
 
-Everything numeric lives in `adgrad.yaml`. The agent may not change it without your "yes".
+Everything numeric lives in `argmax.yaml`. The agent may not change it without your "yes".
 
 ## Architecture
 
@@ -72,7 +75,7 @@ flowchart LR
   S -- reads --> W[(Your website: ad claims)]
   S -- writes --> L[log/, reports/, ledger]
   R -- reports and decisions --> T[Tracker: GitHub Issues, files, ClickUp, Notion, Linear]
-  CFG[adgrad.yaml + STRATEGY.md] --> S
+  CFG[argmax.yaml + STRATEGY.md] --> S
   CFG --> R
 ```
 
@@ -87,11 +90,11 @@ flowchart LR
 ## Quickstart (about 10 minutes of your time, plus Google's token approval)
 
 1. **Make your private copy.** Paste the one-message prompt at the top into your agent, or by hand:
-   `gh repo create my-adgrad --private --template <owner>/<repo> --clone` (details in `BOOTSTRAP.md`).
+   `gh repo create my-argmax --private --template edward-ch-hu/argmax --clone` (details in `BOOTSTRAP.md`).
 2. **Open it in your agent and say "onboard me".** `prompts/onboarding.md` walks you through prerequisites, the
-   Google Ads API, picking the account, your tracker, your CRM, your strategy, the guardrails, a first read-only
-   run, and scheduling. It saves progress, so "continue onboarding" resumes (handy while Google approves your
-   developer token).
+   Google Ads API, picking the account, your business profile (goal, KPI, markets, report language, deal currency),
+   your tracker, your CRM, your strategy, the guardrails, a first read-only run, and scheduling. It saves progress,
+   so "continue onboarding" resumes (handy while Google approves your developer token).
 3. **Read your first weekly report**, answer decisions with "yes", "no" or "reverse".
 
 Prefer doing it by hand? `SETUP.md` is the full manual reference. `uv run scripts/doctor.py` tells you what is
@@ -111,10 +114,12 @@ still missing at any point.
 
 ## Pick your strategy
 
-`STRATEGY.md` is the agent's standing brief: goal, what counts as success, evidence rules, topic spend targets,
-phases. Start from a template in [strategies/](strategies/README.md): B2B lead gen, e-commerce ROAS, local
-services, new-account discovery, brand defense. Or let `prompts/strategy-interview.md` interview you, or port your
-existing notes.
+The business profile (`business:` in `argmax.yaml`) says what you want: the goal (leads, sales, ROAS, calls or
+awareness), the KPI that counts, your markets and their ad languages, and the language you read reports in.
+`STRATEGY.md` is the agent's standing brief on how to get there: evidence rules, topic spend targets, phases.
+Start from a template in [strategies/](strategies/README.md) that fits your goal: B2B lead gen, e-commerce ROAS,
+local services, new-account discovery, brand defense. Or let `prompts/strategy-interview.md` interview you, or port
+your existing notes.
 
 ## Safety notes
 
@@ -139,7 +144,7 @@ live site before each test. New copy outside the library is a proposal you appro
 
 **Which agent is best?** Whichever you already pay for. The engine is plain Python; the agent reads markdown.
 
-**How do I get updates?** "update adgrad from upstream" in your agent, or `docs/updating.md`.
+**How do I get updates?** "update argmax from upstream" in your agent, or `docs/updating.md`.
 
 **Is this affiliated with Google, Anthropic, OpenAI or xAI?** No.
 
@@ -148,7 +153,7 @@ live site before each test. New copy outside the library is a proposal you appro
 ```
 AGENTS.md            rules for every agent (CLAUDE.md points here)
 BOOTSTRAP.md         for an agent setting up a new private copy
-adgrad.example.yaml  every setting, commented (your adgrad.yaml is gitignored)
+argmax.example.yaml  every setting, commented (your argmax.yaml is gitignored)
 STRATEGY.example.md  the strategy structure; strategies/ has ready-made ones
 prompts/             daily, weekly, monthly routines; onboarding; strategy interview
 scripts/             the engine (validate-only by default)

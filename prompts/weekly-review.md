@@ -1,16 +1,20 @@
-You run the adgrad weekly review of the Google Ads account configured in `adgrad.yaml` (Monday morning, account
+You run the argmax weekly review of the Google Ads account configured in `argmax.yaml` (Monday morning, account
 time zone). This repo (the owner's private copy) is checked out in your working directory. AGENTS.md holds the
 rules (Autonomy, decisions, facts, templates); this file holds the steps. For every tracker action, read
-`trackers/<tracker.backend>.md` for how.
+`trackers/<tracker.backend>.md` for how. Write the log, the report, decisions and comments in
+`business.report_language` (AGENTS.md "Reporting" lists the fixed English parts). Success means
+`business.primary_kpi` toward `business.goal`, nothing else.
 
-In CI: if the environment variable `ADGRAD_COMMIT` is `workflow`, skip every git commit, pull and push step: the
+In CI: if the environment variable `ARGMAX_COMMIT` is `workflow`, skip every git commit, pull and push step: the
 workflow commits the runtime files after you finish. Everything else stays the same.
 
 1. Setup: install uv if missing (`pip install uv`), then `uv sync`. Run `uv run scripts/doctor.py`. If config,
    credentials or API access FAIL, create a report titled "Google Ads agent: setup failed <date>" with the doctor
    output (no secrets), and stop. If onboarding is incomplete, report that and stop.
 2. Read, before deciding anything:
-   - AGENTS.md (follow it exactly) and STRATEGY.md (phase, Evidence rules, topic spend targets, overrides).
+   - AGENTS.md (follow it exactly), the business profile (`business:` in argmax.yaml: goal, primary KPI and its
+     conversion actions, markets, report language) and STRATEGY.md (phase, Evidence rules, topic spend targets,
+     overrides).
    - The 3 newest weekly logs in log/, and the newest log/*-monthly.md with its reports/monthly/<YYYY-MM>.json.
    - The comments on the last 2 weekly reports and on the newest monthly report.
    - Every open decision and its comments, including the ones the monthly raised. Handle each as AGENTS.md
@@ -43,8 +47,9 @@ workflow commits the runtime files after you finish. Everything else stays the s
      description asset ids from the library and a final URL that is a library page; run `uv run scripts/ad_test.py
      create reports/ad-test-<date>.json` (validate) and `--apply`. If it prints FAIL, fix the file; never work
      around it. Never edit the library.
-5. Observe: 3 to 5 observations backed by numbers (what changed vs last week, and the likely cause). Always include
-   spend per topic vs CRM leads and wins per topic, the ref fill rate (when ref codes are on), and every ref-matched
+5. Observe: 3 to 5 observations backed by numbers (what changed vs last week, and the likely cause), judged against
+   `business.primary_kpi` (and `business.kpi_conversions` as its Google Ads stand-ins). Always include spend per
+   topic vs CRM leads and wins per topic, the ref fill rate (when ref codes are on), and every ref-matched
    lead. Follow STRATEGY.md's Evidence rules: no defunding below the floor, no topic judged on one week or one
    month, noise signals never used as evidence.
 6. Optimise, inside AGENTS.md's Autonomy and the current phase in STRATEGY.md:
@@ -64,9 +69,9 @@ workflow commits the runtime files after you finish. Everything else stays the s
      share and make one move toward `stepping.rank_lost_band`: raise when over it, lower when under it with enough
      impressions, hold when the campaign lost over `stepping.budget_lost_max` to budget (fix the budget instead).
    - Bids, budgets and statuses: write reports/changes-<date>.json (shape in scripts/apply_changes.py) with a reason
-     and an expected_effect per item, run `uv run scripts/apply_changes.py <json>` (validate) and `--apply`. If it
-     prints FAIL, fix the file; never work around it. Move toward the approved topic spend targets using spend-side
-     data only.
+     and an expected_effect per item (stated in terms of `business.primary_kpi` where it can be), run `uv run
+     scripts/apply_changes.py <json>` (validate) and `--apply`. If it prints FAIL, fix the file; never work around
+     it. Move toward the approved topic spend targets using spend-side data only.
    - Anything else (rare): a script under scripts/, validate first, then --apply.
 7. Create one decision per new proposal (check for an open duplicate first). Then write log/<YYYY-MM-DD>.md with
    the weekly template in AGENTS.md, including Ad tests, Routine health and Open proposals.

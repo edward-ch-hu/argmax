@@ -1,14 +1,19 @@
-"""adgrad config: one YAML file, validated once, read by every script through get().
+"""argmax config: one YAML file, validated once, read by every script through get().
 
 Where it comes from (first match wins):
-  1. ADGRAD_CONFIG_YAML  the whole YAML as text (handy for cloud routine environment variables)
-  2. ADGRAD_CONFIG       a path to a YAML file
-  3. adgrad.yaml         in the working directory
-Then ADGRAD_CUSTOMER_ID and ADGRAD_LOGIN_CUSTOMER_ID override the account ids when set.
+  1. ARGMAX_CONFIG_YAML  the whole YAML as text (handy for cloud routine environment variables)
+  2. ARGMAX_CONFIG       a path to a YAML file
+  3. argmax.yaml         in the working directory
+Then ARGMAX_CUSTOMER_ID and ARGMAX_LOGIN_CUSTOMER_ID override the account ids when set.
 
 Optional fields take the defaults in DEFAULTS. A missing file or an invalid field stops the script with one line per
 problem. Secrets (developer token, OAuth client, refresh token) never live here: they stay in google-ads.yaml or the
 GOOGLE_ADS_* environment variables.
+
+The business profile (business:) is the one source for markets and languages. When left out, website.locales,
+ad_tests.campaign_locales and ad_tests.default_locale are derived from business.markets (when set, they must agree
+with the markets). report.client_update.language defaults to business.report_language, business.deal_currency to
+account.currency, and crm.deal_value_fx is needed only when those two currencies differ.
 """
 import copy
 import os
@@ -21,13 +26,16 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
 
-DEFAULT_PATH = Path("adgrad.yaml")
+DEFAULT_PATH = Path("argmax.yaml")
 TRACKERS = ("github-issues", "files", "clickup", "notion", "linear")
 CRM_SOURCES = ("none", "csv", "google_sheets")
 STATUSES = ("talking", "trial", "won", "lost_after_trial", "lost_no_trial")
 RESERVED_TOPICS = ("other", "none", "mixed")
+GOALS = ("leads", "sales", "roas", "calls", "awareness")
 
 DEFAULTS = {
+    "business": {"goal": None, "goal_description": None, "primary_kpi": None, "kpi_conversions": [], "markets": [],
+                 "report_language": "English", "deal_currency": None},
     "account": {"customer_id": None, "login_customer_id": None, "name": "my account", "currency": None,
                 "timezone": None},
     "limits": {"daily_budget_cap": None, "weekly_bid_change": 0.20, "bid_floor": 0.20, "bid_ceiling": 5.00,
@@ -45,22 +53,22 @@ DEFAULTS = {
     "winning_topics": [],
     "ad_group_topics": {},
     "conversions": {"lead_signals": [], "noise_signals": []},
-    "website": {"base_url": None, "locales": ["en"], "user_agent": "adgrad claims check"},
-    "ad_tests": {"enabled": True, "library": "docs/ad_library.json", "campaign_locales": {}, "default_locale": None,
+    "website": {"base_url": None, "locales": None, "user_agent": "argmax claims check"},
+    "ad_tests": {"enabled": True, "library": "docs/ad_library.json", "campaign_locales": None, "default_locale": None,
                  "min_impressions_14d": 300, "max_running": 3, "max_new_per_week": 1, "min_days": 28,
                  "max_days": 56, "min_arm_impressions": 1000, "z": 1.96, "claims_max_age_days": 7},
     "crm": {"source": "none", "csv_path": None, "sheet_id": None, "sheet_range": "Sheet1!A1:Z", "date_format": None,
             "columns": {"id": None, "lead_date": None, "status": None, "topics": None, "deal_value": None,
                         "name": None, "email": None, "ref": None},
             "statuses": {"talking": [], "trial": [], "won": [], "lost_after_trial": [], "lost_no_trial": []},
-            "default_status": "talking", "deal_value_label": "MRR", "deal_value_fx": 1.0, "stale_after_days": 14},
-    "ref_codes": {"enabled": False, "prefix": "AG-", "live_from": None, "test_codes": []},
+            "default_status": "talking", "deal_value_label": "MRR", "deal_value_fx": None, "stale_after_days": 14},
+    "ref_codes": {"enabled": False, "prefix": "AM-", "live_from": None, "test_codes": []},
     "tracker": {"backend": "files", "github": {}, "clickup": {}, "notion": {}, "linear": {}, "files": {}},
-    "report": {"history_start": None, "client_update": {"enabled": True, "language": "English", "blocklist": []}},
+    "report": {"history_start": None, "client_update": {"enabled": True, "language": None, "blocklist": []}},
 }
 # Sections that become attribute namespaces (cfg.limits.daily_budget_cap). Mappings keyed by user names (topics,
 # ad group names, statuses, columns) stay plain dicts.
-SECTIONS = ("account", "limits", "guard", "stepping", "negatives", "keyword_review", "match_type_review",
+SECTIONS = ("business", "account", "limits", "guard", "stepping", "negatives", "keyword_review", "match_type_review",
             "conversions", "website", "ad_tests", "crm", "ref_codes", "tracker", "report")
 
 
@@ -106,8 +114,88 @@ def str_list(problems, where, value, allow_empty=True):
     return True
 
 
+def one_line(problems, where, value, required=False):
+    """A one-line string (or None when not required)."""
+    if value is None and not required:
+        return
+    if not (isinstance(value, str) and value.strip() and "\n" not in value.strip()):
+        problems.append(f"{where}: must be one line of text (got {value!r})")
+
+
+def validate_business(p, c):
+    """The business profile. Fills deal_currency and kpi_conversions defaults in place."""
+    b, a = c["business"], c["account"]
+    if b["goal"] is not None and b["goal"] not in GOALS:
+        p.append(f"business.goal: must be one of {', '.join(GOALS)} (got {b['goal']!r})")
+    one_line(p, "business.goal_description", b["goal_description"])
+    one_line(p, "business.primary_kpi", b["primary_kpi"])
+    if b["goal"] is not None and not b["primary_kpi"]:
+        p.append("business.primary_kpi: needed once business.goal is set (what success is counted in, e.g. CRM wins)")
+    one_line(p, "business.report_language", b["report_language"], required=True)
+    if b["deal_currency"] is None:
+        b["deal_currency"] = a["currency"]
+    elif not (isinstance(b["deal_currency"], str) and re.fullmatch(r"[A-Z]{3}", b["deal_currency"])):
+        p.append(f"business.deal_currency: must be a 3-letter ISO code like USD (got {b['deal_currency']!r})")
+    signals = c["conversions"]["lead_signals"]
+    if str_list(p, "business.kpi_conversions", b["kpi_conversions"]):
+        if not b["kpi_conversions"] and isinstance(signals, list):
+            b["kpi_conversions"] = list(signals)
+        for name in b["kpi_conversions"]:
+            if isinstance(signals, list) and name not in signals:
+                p.append(f"business.kpi_conversions: '{name}' is not in conversions.lead_signals (add it there first)")
+
+    markets = b["markets"]
+    if not isinstance(markets, list):
+        p.append("business.markets: must be a list of {name, countries, language, campaign_prefix}")
+        b["markets"] = markets = []
+    if b["goal"] is not None and not markets:
+        p.append("business.markets: needed once business.goal is set (at least one market: countries and ad language)")
+    names, prefixes = set(), set()
+    for i, m in enumerate(markets):
+        where = f"business.markets[{i}]"
+        if not isinstance(m, dict):
+            p.append(f"{where}: must be a mapping with name, countries, language")
+            continue
+        unknown = set(m) - {"name", "countries", "language", "campaign_prefix"}
+        if unknown:
+            p.append(f"{where}: unknown key(s) {', '.join(sorted(unknown))} (use name, countries, language, campaign_prefix)")
+        name = m.get("name")
+        if not (isinstance(name, str) and name.strip()):
+            p.append(f"{where}.name: needed (e.g. US or DACH)")
+        else:
+            where = f"business.markets.{name}"
+            if name in names:
+                p.append(f"{where}: two markets have this name")
+            names.add(name)
+        str_list(p, f"{where}.countries", m.get("countries"), allow_empty=False)
+        lang = m.get("language")
+        if not (isinstance(lang, str) and re.fullmatch(r"[A-Za-z]{2,3}([-_][A-Za-z0-9]{2,8})*", lang)):
+            p.append(f"{where}.language: the ad language as a site locale code like en, de or zh-tw (got {lang!r})")
+        prefix = m.get("campaign_prefix")
+        if prefix is not None:
+            if not (isinstance(prefix, str) and prefix):
+                p.append(f"{where}.campaign_prefix: a campaign name prefix like \"US - \", or leave it out")
+            elif prefix in prefixes:
+                p.append(f"{where}.campaign_prefix: '{prefix}' is used by two markets")
+            else:
+                prefixes.add(prefix)
+
+
+def market_locales(c):
+    """(languages in market order, {campaign prefix: language}) from business.markets (valid entries only)."""
+    langs, prefixes = [], {}
+    for m in c["business"]["markets"]:
+        if not isinstance(m, dict) or not isinstance(m.get("language"), str):
+            continue
+        if m["language"] not in langs:
+            langs.append(m["language"])
+        if isinstance(m.get("campaign_prefix"), str) and m["campaign_prefix"]:
+            prefixes[m["campaign_prefix"]] = m["language"]
+    return langs, prefixes
+
+
 def validate(c):
-    """Every problem in the merged config dict, as lines. Normalises ids in place."""
+    """Every problem in the merged config dict, as lines. Normalises ids and fills derived values in place."""
     p = []
     a = c["account"]
     cid = digits(a["customer_id"])
@@ -203,17 +291,36 @@ def validate(c):
         if both:
             p.append(f"conversions: {', '.join(sorted(both))} is both a lead signal and a noise signal")
 
+    validate_business(p, c)
+    langs, market_prefixes = market_locales(c)
+
     w = c["website"]
     if w["base_url"] is not None:
         if not (isinstance(w["base_url"], str) and re.fullmatch(r"https?://[^/\s]+", w["base_url"].rstrip("/"))):
             p.append(f"website.base_url: must be like https://www.example.com, no path (got {w['base_url']!r})")
         else:
             w["base_url"] = w["base_url"].rstrip("/")
-    str_list(p, "website.locales", w["locales"], allow_empty=False)
+    # Locales come from business.markets (one source of truth); an explicit website.locales or
+    # ad_tests.campaign_locales is allowed but must agree with the markets.
+    if w["locales"] is None:
+        w["locales"] = langs or ["en"]
+    elif str_list(p, "website.locales", w["locales"], allow_empty=False):
+        for lang in langs:
+            if lang not in w["locales"]:
+                p.append(f"website.locales: misses '{lang}', the ad language of a market in business.markets "
+                         "(leave website.locales out to derive it from the markets)")
 
     t = c["ad_tests"]
     if t["enabled"] and w["base_url"] is None:
         p.append("ad_tests.enabled: needs website.base_url (the site is the source of truth for ad claims)")
+    if t["campaign_locales"] is None:
+        t["campaign_locales"] = dict(market_prefixes)
+    elif isinstance(t["campaign_locales"], dict):
+        for prefix, loc in market_prefixes.items():
+            if prefix in t["campaign_locales"] and t["campaign_locales"][prefix] != loc:
+                p.append(f"ad_tests.campaign_locales.{prefix}: '{t['campaign_locales'][prefix]}' disagrees with "
+                         f"business.markets, which gives '{loc}' (set it in business.markets only)")
+        t["campaign_locales"] = {**market_prefixes, **t["campaign_locales"]}
     if not isinstance(t["campaign_locales"], dict):
         p.append("ad_tests.campaign_locales: must map campaign name prefixes to locales")
     elif isinstance(w["locales"], list):
@@ -221,7 +328,7 @@ def validate(c):
             if loc not in w["locales"]:
                 p.append(f"ad_tests.campaign_locales.{prefix}: '{loc}' is not in website.locales")
     if t["default_locale"] is None and isinstance(w["locales"], list) and w["locales"]:
-        t["default_locale"] = w["locales"][0]
+        t["default_locale"] = (langs or w["locales"])[0]
     for key in ("min_impressions_14d", "max_running", "max_new_per_week", "min_days", "max_days",
                 "min_arm_impressions", "claims_max_age_days"):
         number(p, f"ad_tests.{key}", t[key], 0)
@@ -256,12 +363,22 @@ def validate(c):
                 seen[v.strip().lower()] = key
     if crm["default_status"] not in ("talking", "trial"):
         p.append("crm.default_status: must be talking or trial (an unknown status is an open lead)")
-    number(p, "crm.deal_value_fx", crm["deal_value_fx"], 0, low_open=True)
+    deal_cur, account_cur = c["business"]["deal_currency"], c["account"]["currency"]
+    if crm["deal_value_fx"] is None:
+        if deal_cur != account_cur and crm["source"] != "none":
+            p.append(f"crm.deal_value_fx: needed because business.deal_currency ({deal_cur}) differs from "
+                     f"account.currency ({account_cur}): how much 1 {deal_cur} is in {account_cur}")
+        crm["deal_value_fx"] = 1.0
+    else:
+        number(p, "crm.deal_value_fx", crm["deal_value_fx"], 0, low_open=True)
+        if deal_cur == account_cur and crm["deal_value_fx"] != 1:
+            p.append(f"crm.deal_value_fx: must be 1 when business.deal_currency equals account.currency ({account_cur}); "
+                     "set business.deal_currency to the currency the CRM's deal values are in")
     number(p, "crm.stale_after_days", crm["stale_after_days"], 1)
 
     r = c["ref_codes"]
     if not (isinstance(r["prefix"], str) and re.fullmatch(r"[A-Z0-9]{1,6}-", r["prefix"])):
-        p.append(f"ref_codes.prefix: 1 to 6 capital letters or digits and a dash, like AG- (got {r['prefix']!r})")
+        p.append(f"ref_codes.prefix: 1 to 6 capital letters or digits and a dash, like AM- (got {r['prefix']!r})")
     if r["live_from"] is not None:
         try:
             r["live_from"] = str(date.fromisoformat(str(r["live_from"])))
@@ -285,7 +402,12 @@ def validate(c):
     hs = c["report"]["history_start"]
     if hs is not None and not re.fullmatch(r"\d{4}-\d{2}", str(hs)):
         p.append(f"report.history_start: must be YYYY-MM (got {hs!r})")
-    str_list(p, "report.client_update.blocklist", c["report"]["client_update"]["blocklist"])
+    cu = c["report"]["client_update"]
+    if cu["language"] is None:
+        cu["language"] = c["business"]["report_language"]
+    else:
+        one_line(p, "report.client_update.language", cu["language"])
+    str_list(p, "report.client_update.blocklist", cu["blocklist"])
     return p
 
 
@@ -312,12 +434,12 @@ def load_dict(data):
 def source(env=None):
     """(YAML text, where it came from), or raises ConfigError when no config is found."""
     env = os.environ if env is None else env
-    if env.get("ADGRAD_CONFIG_YAML"):
-        return env["ADGRAD_CONFIG_YAML"], "ADGRAD_CONFIG_YAML"
-    path = Path(env["ADGRAD_CONFIG"]) if env.get("ADGRAD_CONFIG") else DEFAULT_PATH
+    if env.get("ARGMAX_CONFIG_YAML"):
+        return env["ARGMAX_CONFIG_YAML"], "ARGMAX_CONFIG_YAML"
+    path = Path(env["ARGMAX_CONFIG"]) if env.get("ARGMAX_CONFIG") else DEFAULT_PATH
     if not path.exists():
-        raise ConfigError(f"no config at {path}: run `uv run scripts/init.py`, or copy adgrad.example.yaml to "
-                          "adgrad.yaml and fill it in (cloud: set ADGRAD_CONFIG or ADGRAD_CONFIG_YAML)")
+        raise ConfigError(f"no config at {path}: run `uv run scripts/init.py`, or copy argmax.example.yaml to "
+                          "argmax.yaml and fill it in (cloud: set ARGMAX_CONFIG or ARGMAX_CONFIG_YAML)")
     return path.read_text(encoding="utf-8"), str(path)
 
 
@@ -332,8 +454,8 @@ def load(env=None):
         account = data.setdefault("account", {}) or {}
         data["account"] = account
         for key in ("customer_id", "login_customer_id"):
-            if env.get(f"ADGRAD_{key.upper()}"):
-                account[key] = env[f"ADGRAD_{key.upper()}"]
+            if env.get(f"ARGMAX_{key.upper()}"):
+                account[key] = env[f"ARGMAX_{key.upper()}"]
     try:
         return load_dict(data)
     except ConfigError as e:
@@ -350,7 +472,7 @@ def get():
         try:
             _active = load()
         except ConfigError as e:
-            sys.exit(f"adgrad config problem: {e}")
+            sys.exit(f"argmax config problem: {e}")
     return _active
 
 

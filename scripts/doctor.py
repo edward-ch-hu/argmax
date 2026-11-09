@@ -1,9 +1,10 @@
 """What is set up and what is missing: one OK / FAIL / PENDING line per item. Changes nothing anywhere.
 
-Items: config (adgrad.yaml), strategy (STRATEGY.md), credentials (google-ads.yaml or GOOGLE_ADS_* env vars, never
+Items: config (argmax.yaml), business profile, strategy (STRATEGY.md) and whether business.goal fits it, credentials (google-ads.yaml or GOOGLE_ADS_* env vars, never
 printed), API access (skipped with --offline), tracker, CRM (header row and status values only), ad library,
-onboarding progress. PENDING means waiting on something (a developer token approval, an onboarding step); FAIL
-means something is wrong. Exit 1 when anything FAILs.
+onboarding progress. PENDING means waiting on something (a developer token approval, an onboarding step); WARN
+means it works but looks wrong (e.g. goal roas with a lead-gen strategy); FAIL means something is wrong. Exit 1 when
+anything FAILs.
 
 Usage: uv run scripts/doctor.py [--offline]
 """
@@ -70,6 +71,18 @@ def crm_status(values, cfg):
     return "OK", f"{len(values) - 1} rows, every status value mapped"
 
 
+def business_status(cfg):
+    """(status, message) for the business profile. Pure."""
+    b = cfg.business
+    if b.goal is None:
+        return "PENDING", "no business profile yet: goal, KPI, markets, report language (onboarding step e, business)"
+    markets = ", ".join(f"{m['name']} ({'/'.join(m['countries'])}, ads in {m['language']})" for m in b.markets)
+    deals = b.deal_currency if b.deal_currency == cfg.account.currency else \
+        f"{b.deal_currency} (x {cfg.crm.deal_value_fx:g} to {cfg.account.currency})"
+    return "OK", (f"goal {b.goal}, KPI {b.primary_kpi} ({', '.join(b.kpi_conversions) or 'no conversion action'}); "
+                  f"markets {markets}; reports in {b.report_language}; deals in {deals}")
+
+
 def tracker_status(cfg, which=shutil.which):
     """(status, message) for the tracker setting. The MCP backends are tested by the agent, not here."""
     backend = cfg.tracker.backend
@@ -82,7 +95,7 @@ def tracker_status(cfg, which=shutil.which):
         return "OK", "github-issues via gh (auth checked below when online)"
     if backend == "files":
         return "OK", "files: decisions/ and reports/weekly/ in this repo, no setup"
-    return "OK", f"{backend}: ids set; the agent tests its connector (onboarding step e)"
+    return "OK", f"{backend}: ids set; the agent tests its connector (onboarding step f)"
 
 
 def check(offline=False, env=None):
@@ -100,13 +113,21 @@ def check(offline=False, env=None):
         if status == "FAIL":
             cfg = None
 
+    if cfg:
+        b = business_status(cfg)
+        out.append((b[0], "business", b[1]))
+
     import strategy_check
     path = Path("STRATEGY.md")
     if not path.exists():
         out.append(("PENDING", "strategy", "no STRATEGY.md (prompts/strategy-interview.md or strategies/)"))
     else:
-        fails, _ = strategy_check.check(path.read_text(encoding="utf-8"), set(cfg.topics) if cfg else None)
+        text = path.read_text(encoding="utf-8")
+        fails, _ = strategy_check.check(text, set(cfg.topics) if cfg else None)
         out.append(("FAIL", "strategy", "; ".join(fails)) if fails else ("OK", "strategy", "required sections present"))
+        if cfg and cfg.business.goal is not None:
+            g = strategy_check.goal_fit(text, cfg.business.goal)
+            out.append((g[0], "goal fit", g[1]))
 
     cred_file = Path("google-ads.yaml")
     file_data = (yaml.safe_load(cred_file.read_text()) or {}) if cred_file.exists() else None
@@ -163,7 +184,7 @@ def api_check(cfg):
     except Exception as e:  # e.g. a bad refresh token
         return "FAIL", "api", f"{type(e).__name__}: {e}"
     c = rows[0].customer
-    notes = [f"{what} in adgrad.yaml is {mine}, the account says {live}"
+    notes = [f"{what} in argmax.yaml is {mine}, the account says {live}"
              for what, live, mine in (("currency", c.currency_code, cfg.account.currency),
                                       ("timezone", c.time_zone, cfg.account.timezone)) if live != mine]
     return ("FAIL" if notes else "OK"), "api", "; ".join(notes) or f"reads {c.descriptive_name or 'the account'}"

@@ -1,7 +1,7 @@
 # Tracker backends
 
 The routines report and ask for approvals through a tracker. AGENTS.md and the prompts only use the verbs below;
-each backend file says exactly how to do them. The agent reads `trackers/<tracker.backend>.md` (from `adgrad.yaml`).
+each backend file says exactly how to do them. The agent reads `trackers/<tracker.backend>.md` (from `argmax.yaml`).
 
 | Backend | Needs | Good for |
 |---|---|---|
@@ -32,7 +32,7 @@ each backend file says exactly how to do them. The agent reads `trackers/<tracke
 
 ## Shared rules
 
-- Every comment the agent writes starts with `[adgrad]`. Any other comment on a decision is the owner's reply,
+- Every comment the agent writes starts with `[argmax]`. Any other comment on a decision is the owner's reply,
   whatever the item's status (owner and agent often share one account in automation).
 - Never create a duplicate decision: list open decisions first; if the same decision is open, comment on it.
 - Never write CRM names or emails, secrets, or em-dashes into any tracker.
@@ -41,5 +41,5 @@ each backend file says exactly how to do them. The agent reads `trackers/<tracke
 ## Add your own backend
 
 Copy the closest file (an MCP one for an app, `files.md` for anything git-based), keep the seven verb headings,
-replace the how-to under each, add any ids it needs under `tracker.<name>` in `adgrad.yaml`, and add the name to
+replace the how-to under each, add any ids it needs under `tracker.<name>` in `argmax.yaml`, and add the name to
 `TRACKERS` in `scripts/config.py`. Until then, `files` works with no setup.

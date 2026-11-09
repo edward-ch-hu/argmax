@@ -183,7 +183,7 @@ def last(path=OUT):
 
 def main():
     if not site():
-        sys.exit("website.base_url is not set in adgrad.yaml: nothing to check against")
+        sys.exit("website.base_url is not set in argmax.yaml: nothing to check against")
     args = sys.argv[1:]
     opt = lambda name: args[args.index(name) + 1] if name in args else None  # noqa: E731
     local, custom = opt("--local"), opt("--library")

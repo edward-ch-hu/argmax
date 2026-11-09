@@ -3,7 +3,8 @@
 One rule for every month, recomputed from scratch each run so history stays consistent:
 - spend:         metrics.cost_micros per segments.month (account currency, account time zone)
 - new customers: CRM rows with stage "win" whose lead date is in the month; new value = the sum of their deal value
-                 (crm.deal_value_label, e.g. MRR, in the CRM's currency)
+                 (crm.deal_value_label, e.g. MRR, in business.deal_currency; the line names that currency when it
+                 is not the account currency)
 - ROI:           first-month deal value x crm.deal_value_fx / spend (not lifetime return). "at least" when the
                  month's leads still have open rows (talking or trial) that could still win.
 - funnel:        crm.funnel() per month (talking, trial, won, lost after / without a trial, and the rates)
@@ -80,6 +81,8 @@ def line(h, label=None, cfg=None):
     """One plain-English line for a month (or the year to date): spend, customers, new value, first-month ROI."""
     cfg = cfg or config.get()
     cur, value_label = cfg.account.currency, cfg.crm.deal_value_label
+    if cfg.business.deal_currency != cur:
+        value_label = f"{value_label} {cfg.business.deal_currency}"
     label = label or f"{calendar.month_name[int(h['month'][5:7])]} {h['month'][:4]}"
     text = f"{label}: spent {cur} {h['spend']:,.0f}"
     if not crm.enabled(cfg):
@@ -293,7 +296,7 @@ def main():
 
     out = {"report_month": month, "generated": now.isoformat(timespec="minutes"), "currency": cfg.account.currency,
            "crm_source": cfg.crm.source, "deal_value_label": cfg.crm.deal_value_label,
-           "deal_value_fx": cfg.crm.deal_value_fx,
+           "deal_currency": cfg.business.deal_currency, "deal_value_fx": cfg.crm.deal_value_fx,
            "compared_with": str(prev_path) if previous else None, "crm_stale": stale,
            "history": hist, "revisions": revs, "warnings": warnings,
            "client_summary": client_summary(hist, month, cfg),

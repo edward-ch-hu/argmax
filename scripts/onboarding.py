@@ -1,4 +1,4 @@
-"""Onboarding progress in .adgrad/onboarding.json (gitignored, never holds secrets), so "continue onboarding"
+"""Onboarding progress in .argmax/onboarding.json (gitignored, never holds secrets), so "continue onboarding"
 resumes where it stopped. prompts/onboarding.md drives the steps; this file only records them.
 
 Usage: uv run scripts/onboarding.py                         show every step and its status
@@ -11,8 +11,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-PATH = Path(".adgrad/onboarding.json")
-STEPS = ("prerequisites", "repo", "google_ads_api", "account", "tracker", "crm", "strategy", "guardrails",
+PATH = Path(".argmax/onboarding.json")
+STEPS = ("prerequisites", "repo", "google_ads_api", "account", "business", "tracker", "crm", "strategy", "guardrails",
          "first_run", "scheduling")
 STATUSES = ("todo", "done", "pending", "skipped")
 SECRET_HINTS = ("token", "secret", "password", "refresh", "api_key", "apikey")

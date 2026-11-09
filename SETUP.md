@@ -4,8 +4,8 @@ The fastest path is your agent: say "onboard me" (`prompts/onboarding.md`). This
 `uv run scripts/doctor.py` shows what is still missing at any point.
 
 ## 0. Your private copy
-adgrad keeps logs, reports and decisions about your account in the repo, so run it from a private copy of this
-template: `gh repo create my-adgrad --private --template <owner>/<repo> --clone`, then add the public repo as a
+argmax keeps logs, reports and decisions about your account in the repo, so run it from a private copy of this
+template: `gh repo create my-argmax --private --template edward-ch-hu/argmax --clone`, then add the public repo as a
 read-only `upstream` (`BOOTSTRAP.md`, `docs/updating.md`). Install `git`, `uv` (https://docs.astral.sh/uv/) and,
 for GitHub, `gh`. Then `uv sync && uv run pytest -q`.
 
@@ -28,20 +28,30 @@ uv run scripts/get_refresh_token.py client_secret.json   # browser sign-in; save
 uv run scripts/accounts.py                        # the accounts you can reach, with currency and time zone
 ```
 
-## 3. adgrad.yaml
+## 3. argmax.yaml
 ```bash
-cp adgrad.example.yaml adgrad.yaml                # or: uv run scripts/init.py (asks), or --answers <file>
+cp argmax.example.yaml argmax.yaml                # or: uv run scripts/init.py (asks), or --answers <file>
 ```
 Set at least: `account` (customer_id, login_customer_id, currency, timezone: take them from `accounts.py`),
-`limits.daily_budget_cap`, `topics`, `winning_topics`, `ad_group_topics`, `conversions.lead_signals` and
-`noise_signals`, `website.base_url` (or `ad_tests.enabled: false`), `crm`, `tracker.backend`. Every field is
-commented in `adgrad.example.yaml`. Then:
+`business` (the profile below), `limits.daily_budget_cap`, `topics`, `winning_topics`, `ad_group_topics`,
+`conversions.lead_signals` and `noise_signals`, `website.base_url` (or `ad_tests.enabled: false`), `crm`,
+`tracker.backend`. Every field is commented in `argmax.example.yaml`. Then:
 ```bash
 uv run scripts/check_connection.py                # config OK, account reachable, currency and time zone match
 ```
-Config sources, first match wins: `ADGRAD_CONFIG_YAML` (the whole YAML as text), `ADGRAD_CONFIG` (a path),
-`adgrad.yaml`. `ADGRAD_CUSTOMER_ID` and `ADGRAD_LOGIN_CUSTOMER_ID` override the ids. `adgrad.yaml` holds no
-secrets: in your private copy, commit it with `git add -f adgrad.yaml` so cloud runs find it.
+The business profile (`business:`) is what every report and decision is shaped by:
+- `goal` (leads, sales, roas, calls or awareness) and a one-line `goal_description`; it must fit the strategy's
+  "Fits goals" line (`doctor.py` warns otherwise).
+- `primary_kpi` (what success is counted in) and `kpi_conversions` (the `conversions.lead_signals` that stand for it;
+  empty means all of them).
+- `markets`: name, countries, ad `language` (a site locale code) and an optional `campaign_prefix`. They are the one
+  source for `website.locales` and `ad_tests.campaign_locales`: leave those out and they are derived.
+- `report_language` (default English): reports, decisions and, unless set apart, the client update.
+- `deal_currency` (default the account currency). When the CRM's deal values are in another currency, set
+  `crm.deal_value_fx` to how much one unit of it is in the account currency (ROI = deal value x fx / spend).
+Config sources, first match wins: `ARGMAX_CONFIG_YAML` (the whole YAML as text), `ARGMAX_CONFIG` (a path),
+`argmax.yaml`. `ARGMAX_CUSTOMER_ID` and `ARGMAX_LOGIN_CUSTOMER_ID` override the ids. `argmax.yaml` holds no
+secrets: in your private copy, commit it with `git add -f argmax.yaml` so cloud runs find it.
 
 ## 4. Strategy
 `cp strategies/<template>.md STRATEGY.md` (see `strategies/README.md`) or run `prompts/strategy-interview.md`.
@@ -79,7 +89,7 @@ simply do not start.
 Environment variables for cloud and CI runs (never commit these):
 `GOOGLE_ADS_DEVELOPER_TOKEN`, `GOOGLE_ADS_CLIENT_ID`, `GOOGLE_ADS_CLIENT_SECRET`, `GOOGLE_ADS_REFRESH_TOKEN`,
 `GOOGLE_ADS_LOGIN_CUSTOMER_ID`, `GOOGLE_ADS_USE_PROTO_PLUS=True`, plus `GH_TOKEN` for the github-issues tracker and
-optionally `ADGRAD_CONFIG_YAML`.
+optionally `ARGMAX_CONFIG_YAML`.
 
 The routines commit their memory (`log/`, `reports/`, `decisions/`) to your private copy with `git add -f`, because
 those paths are gitignored in the public template. That is what lets the next run read the last one.

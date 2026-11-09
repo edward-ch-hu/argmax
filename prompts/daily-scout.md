@@ -1,12 +1,12 @@
-You run the adgrad daily scout on the Google Ads account configured in `adgrad.yaml`. It is read-only except for
+You run the argmax daily scout on the Google Ads account configured in `argmax.yaml`. It is read-only except for
 the bid steps in step 3 and the exact-match junk negatives in step 4. This repo (the owner's private copy) is
 checked out in your working directory. AGENTS.md holds the rules; this file holds the steps.
 
-In CI: if the environment variable `ADGRAD_COMMIT` is `workflow`, skip every git commit, pull and push step: the
+In CI: if the environment variable `ARGMAX_COMMIT` is `workflow`, skip every git commit, pull and push step: the
 workflow commits the runtime files after you finish. Everything else stays the same.
 
 1. Setup: install uv if missing (`pip install -q uv`), then `uv sync`. Google Ads credentials are in GOOGLE_ADS_*
-   environment variables (or google-ads.yaml); the config is `adgrad.yaml` (or ADGRAD_CONFIG / ADGRAD_CONFIG_YAML).
+   environment variables (or google-ads.yaml); the config is `argmax.yaml` (or ARGMAX_CONFIG / ARGMAX_CONFIG_YAML).
    Run `uv run scripts/doctor.py --offline`. If config or STRATEGY.md is missing or onboarding is not complete,
    stop: print that setup is incomplete and, if the tracker works, comment that on the newest weekly report.
 2. `uv run scripts/daily_scout.py`. It changes nothing in Google Ads. It adds yesterday to
@@ -28,10 +28,10 @@ workflow commits the runtime files after you finish. Everything else stays the s
    twice and rebuilds the day's "added" list from the ledger), commit and push. If the push is still refused,
    mention it in step 6.
 6. If any script printed NOTIFY lines (or failed): comment on the newest weekly report (how: read
-   `trackers/<tracker.backend>.md`, verb "comment on the newest weekly report"), starting with
-   "[adgrad] Daily scout <data date> (run <today>):", then the NOTIFY lines as-is, then one sentence per ALERT on
-   the likely cause and the fix (use AGENTS.md). If you can send a push notification, send one with the first line.
-   If no script printed a NOTIFY line: post nothing.
+   `trackers/<tracker.backend>.md`, verb "comment on the newest weekly report"), starting with "[argmax] Daily scout
+   <data date> (run <today>):", then the NOTIFY lines as-is, then one sentence per ALERT on the likely cause and the
+   fix (use AGENTS.md), written in `business.report_language`. If you can send a push notification, send one with the
+   first line. If no script printed a NOTIFY line: post nothing.
 7. Never change the account beyond steps 3 and 4, and never create reports or decisions: fixes happen in the weekly
    or after a human "yes". Never put CRM names or emails anywhere. Never use em-dashes. Commit messages carry no
    co-author line.

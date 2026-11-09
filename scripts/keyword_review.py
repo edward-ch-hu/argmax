@@ -2,7 +2,7 @@
 
 Writes reports/keyword-review-<date>.md (to read) and .json (to edit, then apply).
 
-Rules, on the last DAYS of Google Search traffic only (thresholds in adgrad.yaml):
+Rules, on the last DAYS of Google Search traffic only (thresholds in argmax.yaml):
   NEGATIVE  search term with clicks but no conversion after negatives.min_cost spend or negatives.min_clicks clicks,
             or any click on a junk word (negatives.junk_words: free, jobs, download...)
   HELD      a would-be negative on a winning topic without a junk word: listed in held_winning for the weekly to

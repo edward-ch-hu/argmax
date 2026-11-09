@@ -16,7 +16,7 @@ header, a blank line, then the log entry. Commit it with the run.
 ## comment on the newest weekly report
 Append to the newest `reports/weekly/*.md`:
 ```
-## [adgrad] Daily scout <data date> (run <today>)
+## [argmax] Daily scout <data date> (run <today>)
 <NOTIFY lines as-is, then one sentence per ALERT>
 ```
 
@@ -42,17 +42,17 @@ Tell the owner in the run's report that the file exists (path).
 ## list open decisions
 Every `decisions/*.md` (not `decisions/closed/`). Due date from `Due:`, kind from the title prefix, status from
 `Status:`. The owner's reply is the `Owner reply:` line plus any comment under `## Comments` that does not start
-with `[adgrad]`. Also read review comments on any open pull request that touches `decisions/` (`gh pr view
+with `[argmax]`. Also read review comments on any open pull request that touches `decisions/` (`gh pr view
 --comments` when the host is GitHub), which some owners prefer.
 
 ## comment on a decision
-Append under `## Comments`: `- [adgrad] <date>: <text>`.
+Append under `## Comments`: `- [argmax] <date>: <text>`.
 
 ## set status
 Edit the `Status:` line: `waiting`, `replied` or `resolved`. A non-empty `Owner reply:` means `replied`.
 
 ## resolve a decision
-Append `- [adgrad] Resolved <date>: <how>`, set `Status: resolved`, and `git mv` the file to `decisions/closed/`.
+Append `- [argmax] Resolved <date>: <how>`, set `Status: resolved`, and `git mv` the file to `decisions/closed/`.
 
 ## Notes
 - The owner replies by editing `Owner reply:` on the web UI and committing to the default branch, or locally and

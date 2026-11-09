@@ -1,4 +1,4 @@
-"""Shared fixtures: the fictional example config (adgrad.example.yaml) is active for every test. No network."""
+"""Shared fixtures: the fictional example config (argmax.example.yaml) is active for every test. No network."""
 import copy
 from pathlib import Path
 
@@ -7,7 +7,7 @@ import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
-EXAMPLE = yaml.safe_load((ROOT / "adgrad.example.yaml").read_text(encoding="utf-8"))
+EXAMPLE = yaml.safe_load((ROOT / "argmax.example.yaml").read_text(encoding="utf-8"))
 
 
 def make(**overrides):
