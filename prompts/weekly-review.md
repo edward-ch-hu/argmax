@@ -61,7 +61,8 @@ workflow commits the runtime files after you finish. Everything else stays the s
      `--apply`. Report them all in the log, with the undone ones and why.
    - Keywords: `uv run scripts/keyword_review.py`, decide each row's `approve` in the JSON, then
      `uv run scripts/apply_keyword_review.py <json>` (validate) and `--apply`. Set `approve` false for a term undone
-     above. Move a `held_winning` row to `negatives` only when it is clearly off-intent. Winning-topic search terms
+     above. Move a `held_winning` row to `negatives` only when it is clearly off-intent. Leave the `protected` rows alone
+     (a lead signal in their campaign within `negatives.protect_days`); list how many in the log. Winning-topic search terms
      with clicks in the daily files are keyword candidates. A NOTE that keyword ideas were skipped (Explorer access,
      `keyword_review.ideas: off`, or Google refused Keyword Planner) is expected: mention it once in the log, not as
      a failure.

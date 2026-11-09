@@ -51,7 +51,8 @@ DEFAULTS = {
     "guard": {"expected_bidding": "MANUAL_CPC", "search_networks_only": True, "overspend_multiple": 2.0},
     "stepping": {"enabled": True, "step": 0.10, "weekly_limit": 0.30, "window_days": 14,
                  "rank_lost_band": [0.20, 0.50], "budget_lost_max": 0.20, "min_impressions": 30, "new_groups": {}},
-    "negatives": {"max_per_day": 10, "lookback_days": 7, "held_notify_cost": 5.0, "min_cost": 3.0, "min_cost_clicks": 3, "min_clicks": 10,
+    "negatives": {"max_per_day": 10, "lookback_days": 7, "protect_days": 30, "held_notify_cost": 5.0, "min_cost": 3.0,
+                  "min_cost_clicks": 3, "min_clicks": 10,
                   "junk_words": ["free", "download", "crack", "torrent", "jobs", "job", "salary", "career",
                                  "tutorial", "course", "github", "reddit"]},
     "api": {"access_level": "unknown"},
@@ -257,6 +258,10 @@ def validate(c):
     n = c["negatives"]
     number(p, "negatives.max_per_day", n["max_per_day"], 0)
     number(p, "negatives.lookback_days", n["lookback_days"], 1, 90)
+    number(p, "negatives.protect_days", n["protect_days"], 0, 365)
+    if isinstance(n["protect_days"], (int, float)) and isinstance(n["lookback_days"], (int, float)) and \
+            0 < n["protect_days"] < n["lookback_days"]:
+        p.append("negatives.protect_days: must be 0 (off) or at least negatives.lookback_days")
     number(p, "negatives.min_cost", n["min_cost"], 0)
     number(p, "negatives.min_clicks", n["min_clicks"], 1)
     number(p, "negatives.min_cost_clicks", n["min_cost_clicks"], 1)

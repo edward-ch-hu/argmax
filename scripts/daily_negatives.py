@@ -8,11 +8,13 @@ campaign-level). No positives, pauses or Keyword Planner ideas: keyword_review.p
 - at most negatives.max_per_day per run day, highest cost first (what the ledger already holds for today counts)
 - skips a term the campaign already blocks (a campaign negative, or a negative in a shared list it uses, with the
   same text in any match type) and a term whose daily negative was undone (ledger), so a re-run never adds twice
+- skips a term protected by a lead-signal conversion in its campaign over negatives.protect_days (keyword_review's
+  protection window; junk words still block)
 Only applies on yesterday's data; an older DATE prints the plan but never applies (like daily_bids.py).
 With --apply: each added negative goes to reports/changes.jsonl (ledger.py, routine "daily", with campaign, text,
 cost and clicks), and the day in reports/daily/week-<MONDAY>.json gets a "negatives" section (run after
-daily_scout.py): added, held_winning, over_cap. Prints NOTIFY NEG when it added something and NOTIFY NEG_HELD when
-a held term costing negatives.held_notify_cost+ is new since the previous recorded day.
+daily_scout.py): added, held_winning, over_cap, protected. Prints NOTIFY NEG when it added something and NOTIFY
+NEG_HELD when a held term costing negatives.held_notify_cost+ is new since the previous recorded day.
 
 undo: removes a campaign's EXACT negative (the weekly's way to reverse a wrong one) and logs it to the ledger;
 the daily never adds that term to that campaign again.
@@ -32,12 +34,8 @@ from ads_client import rows
 from apply_keyword_review import apply
 from daily_scout import previous_day, read, week_path
 from google.ads.googleads.errors import GoogleAdsException
-from keyword_review import money, negative_rule, search_campaigns, search_terms
+from keyword_review import money, negative_rule, norm, protect_terms, protection, search_campaigns, search_terms
 from topics import main_topic
-
-
-def norm(text):
-    return " ".join(text.lower().strip('"[]+').split())
 
 
 def blocked(ga, campaigns):
@@ -71,16 +69,22 @@ def undone(entries=None):
             if e.get("field") == "negative" and e.get("after") is None}
 
 
-def select(terms, have, gone, added_today, cfg=None):
+def select(terms, have, gone, added_today, cfg=None, recent=None):
     """The selection rule (pure, for tests). terms: {(campaign id, normalised text): {campaign, ad_group, text,
     cost, clicks, conversions, ...}} summed over the window; have: {campaign id: blocked texts}; gone: {(campaign
-    name, text)} undone by the weekly; added_today: daily negatives already in the ledger today.
-    Returns (to_add, held, over_cap, skipped), each highest cost first."""
+    name, text)} undone by the weekly; added_today: daily negatives already in the ledger today; recent: {(campaign
+    id, normalised text): lead-signal conversions over negatives.protect_days} (protect_terms).
+    Returns (to_add, held, over_cap, skipped), each highest cost first; a protected term is skipped with its reason."""
     cfg = cfg or config.get()
+    recent = recent or {}
     candidates, held, skipped = [], [], []
     for (cid, text), row in terms.items():
-        negative = negative_rule(row["text"], row["cost"], row["clicks"], row["conversions"], cfg)
+        args = (row["text"], row["cost"], row["clicks"], row["conversions"])
+        negative = negative_rule(*args, cfg, recent.get((cid, text), 0))
         if not negative:
+            why = protection(*args, recent.get((cid, text), 0), cfg)
+            if why:
+                skipped.append({**row, "reason": why})
             continue
         reason, topic, is_held = negative
         if is_held:
@@ -114,7 +118,8 @@ def plan(client, day, run_day):
     for key, t in sums.items():
         micros, conv = t.pop("micros"), t.pop("conv")
         terms[key] = {**t, "cost": money(micros), "conversions": round(conv, 1)}
-    return select(terms, blocked(ga, campaigns), undone(), len(daily_lines(run_day)), cfg)
+    return select(terms, blocked(ga, campaigns), undone(), len(daily_lines(run_day)), cfg,
+                  protect_terms(ga, campaigns, end, cfg))
 
 
 def run(day, apply_changes):
@@ -152,7 +157,9 @@ def run(day, apply_changes):
             "window": f"{date.fromisoformat(day) - timedelta(days=cfg.negatives.lookback_days - 1)} to {day}",
             "added": [{k: e[k] for k in ("campaign", "text", "cost", "clicks", "reason")} for e in daily_lines(run_day)],
             "held_winning": [{k: r[k] for k in ("campaign", "ad_group", "text", "topic", "cost", "clicks")} for r in held],
-            "over_cap": [{k: r[k] for k in ("campaign", "text", "cost", "clicks")} for r in over_cap]}
+            "over_cap": [{k: r[k] for k in ("campaign", "text", "cost", "clicks")} for r in over_cap],
+            "protected": [{k: r[k] for k in ("campaign", "text", "cost", "clicks", "reason")} for r in skipped
+                          if r["reason"].startswith("protected")]}
         path.write_text(json.dumps(week, ensure_ascii=False, indent=1))
     else:
         print(f"NOTIFY ALERT daily_negatives: {day} is missing from {path}; run daily_scout.py first")

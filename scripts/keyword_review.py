@@ -11,6 +11,9 @@ Rules, on the last DAYS of Google Search traffic only (thresholds in argmax.yaml
   NEGATIVE  search term with no lead-signal conversion after negatives.min_cost spend over at least
             negatives.min_cost_clicks clicks (so one expensive click in a quiet account is not enough), or after
             negatives.min_clicks clicks, or any click on a junk word (negatives.junk_words: free, jobs, download...)
+  PROTECTED a would-be negative by spend or clicks that had a lead-signal conversion in its campaign over the last
+            negatives.protect_days (default 30, all networks): never blocked, listed in "protected" with the reason.
+            Junk words still block. Lead signals only: a noise signal never protects a term
   HELD      a would-be negative on a winning topic without a junk word: listed in held_winning for the weekly to
             judge (move a row to negatives to block it); apply_keyword_review.py ignores this list
   POSITIVE  search term with keyword_review.min_positive_conversions+ conversions that isn't a keyword yet -> phrase
@@ -29,6 +32,7 @@ Then:  edit "approve" in the .json, run scripts/apply_keyword_review.py <json>
 import json
 import sys
 from collections import defaultdict
+from datetime import timedelta
 from functools import reduce
 from pathlib import Path
 from types import SimpleNamespace
@@ -50,17 +54,50 @@ def junk_word(term, words=None):
     return next((w for w in words if w.lower() in t), None)
 
 
-def negative_rule(term, cost, clicks, conversions, cfg=None):
-    """The NEGATIVE rule: None, or (reason, topic, held); held = a winning topic without a junk word (held_winning)."""
+def norm(text):
+    """A search term or keyword text compared loosely: lower case, no match type marks, single spaces."""
+    return " ".join(text.lower().strip('"[]+').split())
+
+
+def negative_rule(term, cost, clicks, conversions, cfg=None, recent=0):
+    """The NEGATIVE rule: None, or (reason, topic, held); held = a winning topic without a junk word (held_winning).
+    conversions: the term's lead-signal conversions over the lookback; recent: its lead-signal conversions in its
+    campaign over negatives.protect_days (protect_terms). Any recent one protects the term from the spend and click
+    rules; a junk word still blocks it."""
     cfg = cfg or config.get()
     n = cfg.negatives
     junk = junk_word(term, n.junk_words)
-    if conversions == 0 and (junk and clicks or (cost >= n.min_cost and clicks >= n.min_cost_clicks)
-                             or clicks >= n.min_clicks):
+    if conversions == 0 and (junk and clicks or not recent and (
+            (cost >= n.min_cost and clicks >= n.min_cost_clicks) or clicks >= n.min_clicks)):
         reason = f"junk word '{junk}'" if junk else f"{cfg.account.currency} {cost} / {clicks} clicks, 0 lead signals"
         topic = main_topic(term, cfg.topics)
         return reason, topic, topic in cfg.winning_topics and not junk
     return None
+
+
+def protection(term, cost, clicks, conversions, recent, cfg=None):
+    """Why a term is not blocked although the lookback says so: its recent lead signals (a skip reason), else None."""
+    cfg = cfg or config.get()
+    if recent and negative_rule(term, cost, clicks, conversions, cfg) and \
+            not negative_rule(term, cost, clicks, conversions, cfg, recent):
+        return f"protected: {recent:g} lead signals in its campaign in the last {cfg.negatives.protect_days} days"
+    return None
+
+
+def protect_terms(ga, campaigns, end, cfg=None):
+    """{(campaign id, norm(term)): lead-signal conversions} over the negatives.protect_days ending `end` (a date), on
+    every network. Lead signals only (lead_conversions), never noise signals. {} when protect_days is 0."""
+    cfg = cfg or config.get()
+    days = cfg.negatives.protect_days
+    if not campaigns or not days:
+        return {}
+    where = (f"campaign.id IN ({','.join(map(str, campaigns))}) "
+             f"AND segments.date BETWEEN '{end - timedelta(days=days - 1)}' AND '{end}'")
+    out = defaultdict(float)
+    for (cid, term), conv in lead_conversions(ga, "search_term_view", ("campaign.id", "search_term_view.search_term"),
+                                              where, cfg).items():
+        out[(cid, norm(term))] += conv
+    return dict(out)
 
 
 def field(row, dotted):
@@ -153,10 +190,15 @@ def main():
         existing[r.campaign.id].add(r.ad_group_criterion.keyword.text.lower().strip('"[]+'))
 
     out = {"date": str(ads_client.today()), "days": days, "currency": cfg.account.currency, "negatives": [],
-           "held_winning": [], "positives": [], "pauses": [], "ideas": []}
+           "held_winning": [], "protected": [], "positives": [], "pauses": [], "ideas": []}
 
+    recent_leads = protect_terms(ga, campaigns, ads_client.today() - timedelta(days=1), cfg)
     for row, m in search_terms(ga, campaigns, period, cfg):
-        negative = negative_rule(row["text"], row["cost"], m.clicks, m.conversions, cfg)
+        recent = recent_leads.get((row["campaign_id"], norm(row["text"])), 0)
+        negative = negative_rule(row["text"], row["cost"], m.clicks, m.conversions, cfg, recent)
+        skip = None if negative else protection(row["text"], row["cost"], m.clicks, m.conversions, recent, cfg)
+        if skip:
+            out["protected"].append({**row, "recent_lead_signals": round(recent, 1), "reason": skip})
         if negative:
             reason, topic, held = negative
             if held:
@@ -182,7 +224,7 @@ def main():
     if note:
         out["ideas_note"] = note
         print(f"NOTE  {note}")
-    for key in ("negatives", "held_winning", "positives", "pauses"):
+    for key in ("negatives", "held_winning", "protected", "positives", "pauses"):
         out[key].sort(key=lambda x: -x["cost"])
 
     Path("reports").mkdir(exist_ok=True)
@@ -190,7 +232,8 @@ def main():
     stem.with_suffix(".json").write_text(json.dumps(out, indent=1, ensure_ascii=False))
     stem.with_suffix(".md").write_text(render(out))
     print(f"{len(out['negatives'])} negatives, {len(out['held_winning'])} held (winning topic), "
-          f"{len(out['positives'])} positives, {len(out['pauses'])} pauses, {len(out['ideas'])} ideas -> {stem}.md / .json")
+          f"{len(out['protected'])} protected (recent lead signal), {len(out['positives'])} positives, "
+          f"{len(out['pauses'])} pauses, {len(out['ideas'])} ideas -> {stem}.md / .json")
 
 
 # Error codes that mean the project may not use Keyword Planning at all (access level) or not now (quota): stop
@@ -294,11 +337,13 @@ def render(out):
     sections = [("negatives", "Block these search terms (negative, exact)", ["campaign", "text", "cost", "clicks", "reason"]),
                 ("held_winning", "Not blocked: winning-topic terms with no conversion (judge by hand)",
                  ["campaign", "ad_group", "text", "topic", "cost", "clicks"]),
+                ("protected", "Not blocked: a lead signal in the protection window", ["campaign", "text", "cost",
+                                                                                       "clicks", "reason"]),
                 ("positives", "Add these search terms as keywords (phrase)", ["campaign", "ad_group", "text", "cost", "conversions"]),
                 ("pauses", "Pause these keywords", ["campaign", "ad_group", "text", "match", "quality_score", "cost", "clicks"]),
                 ("ideas", "New keyword ideas (Keyword Planner)", ["campaign", "ad_group", "text", "monthly_searches", "competition", "top_bid"])]
     for key, title, cols in sections:
-        rows = out[key]
+        rows = out.get(key, [])
         lines += [f"## {title} ({len(rows)})", ""]
         if key == "ideas" and out.get("ideas_note"):
             lines += [f"NOTE: {out['ideas_note']}.", ""]

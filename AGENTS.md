@@ -56,8 +56,10 @@ Apply on your own, then report:
   `apply_keyword_review.py`).
 - Daily junk negatives (`daily_negatives.py`): EXACT campaign negatives only, for terms that keyword_review's
   negative rule blocks on the last `negatives.lookback_days`; never a winning-topic term without a junk word (held
-  for the weekly); at most `negatives.max_per_day` a day, highest cost first; never a term the campaign already
-  blocks or one the weekly undid. The weekly reviews them and undoes any that blocks buyer intent with
+  for the weekly); never a term with a lead-signal conversion in its campaign over the last
+  `negatives.protect_days` (protected, reported as skipped; junk words still block); at most
+  `negatives.max_per_day` a day, highest cost first; never a term the campaign already blocks or one the weekly
+  undid. The weekly reviews them and undoes any that blocks buyer intent with
   `daily_negatives.py undo`.
 - Match type tightening (`match_type_review.py`, first weekly of the month): goes through an "Unless you say no:
   Tighten <n> keywords to phrase/exact" decision first, applied with `apply_keyword_review.py` after its due date.

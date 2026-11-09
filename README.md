@@ -53,6 +53,7 @@ the lock and the allowlist below make sure the agent cannot edit the script or t
 | Bid floor and ceiling | `apply_changes.py`, `daily_bids.py` | refused / clamped |
 | Daily stepping window (winning groups only) | `daily_bids.py` | hand edits refused while stepping |
 | Max junk negatives per day, never winning-topic terms | `daily_negatives.py` | held for the weekly |
+| Protection window: a term with a lead signal in the last 30 days is never blocked by spend or clicks | `keyword_review.py`, `daily_negatives.py` | skipped with the reason |
 | Ad copy only from a claims library quoted from your site | `claims_check.py`, `ad_test.py` | test refused or paused |
 | A/B decisions by two-proportion z-test, never the last ad | `ad_test.py` | waits for evidence |
 | Evidence floors before defunding a topic | `STRATEGY.md` | spend-side fixes only |

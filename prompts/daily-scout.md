@@ -18,7 +18,8 @@ workflow commits the runtime files after you finish. Everything else stays the s
    (BID, and BUDGET when a group starts being held by its campaign budget). Treat them as NOTIFY lines. If it prints
    FAIL, mention it in step 6. Make no other bid changes.
 4. `uv run scripts/daily_negatives.py --apply`. It blocks junk search terms of the last days as exact-match campaign
-   negatives (keyword_review's negative rule; winning-topic terms without a junk word are held for the weekly),
+   negatives (keyword_review's negative rule; winning-topic terms without a junk word are held for the weekly, and
+   terms with a lead signal in their campaign within `negatives.protect_days` are skipped as protected),
    logs them to reports/changes.jsonl, adds a "negatives" section to the same day, and prints NOTIFY lines (NEG,
    NEG_HELD). Treat them as NOTIFY lines. If it prints FAIL, mention it in step 6. Add no other keywords or negatives.
 5. Commit only the daily files and the ledger (they are gitignored on purpose, so add them by path):
