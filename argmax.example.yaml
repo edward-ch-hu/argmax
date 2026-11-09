@@ -10,6 +10,19 @@ account:
   currency: USD                      # the account's currency (check_connection.py warns on a mismatch)
   timezone: America/New_York         # IANA name; the routines' "today" and "yesterday" use it
 
+business:                    # the business profile: what success means, where you sell, how you want to be told
+  goal: leads                # leads | sales | roas | calls | awareness; must fit STRATEGY.md's "Fits goals" (doctor.py)
+  goal_description: "Trials that turn into paid plans, at the same total budget"   # one line, the owner's words
+  primary_kpi: CRM wins      # what success is counted in (e.g. CRM wins, purchase value, qualified calls)
+  kpi_conversions: ["Demo Request"]   # Google Ads actions that stand for the KPI; each must be in conversions.lead_signals
+  markets:                   # where you advertise and in which language; the one source for site and ad locales
+    - name: North America
+      countries: [US, CA]    # country codes or region names as targeted in Google Ads
+      language: en           # the ad language = the site locale its ads and claims use (website.locales derive from it)
+      campaign_prefix: "US - "   # campaigns starting with this belong to the market (ad_tests.campaign_locales derive from it)
+  report_language: English   # weekly and monthly reports, decisions and the client update are written in it
+  deal_currency: USD         # the currency of CRM deal values; defaults to account.currency (see crm.deal_value_fx)
+
 limits:                      # the hard guardrails; apply_changes.py refuses a file that breaks them
   daily_budget_cap: 150      # total daily budget across enabled campaigns, account currency
   weekly_bid_change: 0.20    # an ad group bid may move at most 20% from its Monday bid per week
@@ -76,14 +89,13 @@ conversions:
 
 website:                     # the source of truth for every ad claim (claims_check.py)
   base_url: https://www.example.com
-  locales: [en]
+  # locales: derived from business.markets (one language per market); set it only to add site-only locales
   user_agent: argmax claims check
 
 ad_tests:
   enabled: true
   library: docs/ad_library.json      # copy docs/ad_library.example.json there and fill it from your own site
-  campaign_locales: {"US - ": en}    # campaign name prefix -> locale; others use default_locale
-  default_locale: en
+  # campaign_locales and default_locale: derived from business.markets (campaign_prefix -> language, first market)
   min_impressions_14d: 300
   max_running: 3
   max_new_per_week: 1
@@ -116,7 +128,7 @@ crm:
     lost_no_trial: [Lost]
   default_status: talking    # an unknown status counts as an open lead
   deal_value_label: MRR
-  deal_value_fx: 1.0         # multiply deal values by this to get the account currency (ROI)
+  deal_value_fx: null        # account currency per 1 business.deal_currency (e.g. 1.29 SGD per USD); only when they differ
   stale_after_days: 14       # ALERT when the CRM has no new entry for this long
 
 ref_codes:                   # optional: tie CRM leads to ad clicks (docs/ref-codes.md)
@@ -138,5 +150,5 @@ report:
   history_start: null        # YYYY-MM the monthly history starts; null = the last 12 months
   client_update:
     enabled: true            # the monthly writes a message for a client or stakeholder
-    language: English
+    # language: defaults to business.report_language; set it when the client reads another language
     blocklist: []            # extra words the client update must never contain (competitor brands, codenames)

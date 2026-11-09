@@ -4,17 +4,21 @@ For an online store where the purchase happens on the site and carries a value. 
 category, find the categories that return the most conversion value per unit of spend, move budget there, and keep
 the account inside the cap.
 
+Fits goals: roas, sales
+
 Config to match: `conversions.lead_signals: [Purchase]` (your purchase action), topics = product categories,
 `crm.source: none` (Google Ads holds the value) or a CSV of orders if you track margin elsewhere,
 `ad_tests.enabled` only if product pages carry stable claims. argmax's topic table is lead-centric: read ROAS from
 `metrics.conversions_value` in `scripts/performance_snapshot.py` or `scripts/gaql.py` per ad group.
 
 ## Goal
-Maximise conversion value per unit of spend (ROAS) across categories at or under the budget cap, without starving
-categories that are still learning.
+The business goal lives in the profile in `argmax.yaml` (`business.goal`, `business.goal_description`); this
+section only says how this strategy pursues it: maximise conversion value per unit of spend (ROAS) across
+categories at or under the budget cap, without starving categories that are still learning.
 
 ## Success signal
-- Counts: purchase conversion value (and orders) per category, from Google Ads `conversions_value`.
+- Counts: `business.primary_kpi` (here: purchase value, and orders, per category from Google Ads
+  `conversions_value` of `business.kpi_conversions`).
 - Leading signals only: add-to-cart, begin-checkout (keep them secondary in Google Ads).
 - Noise, never judged on: page-view or engagement goals.
 

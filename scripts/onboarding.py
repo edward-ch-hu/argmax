@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 PATH = Path(".argmax/onboarding.json")
-STEPS = ("prerequisites", "repo", "google_ads_api", "account", "tracker", "crm", "strategy", "guardrails",
+STEPS = ("prerequisites", "repo", "google_ads_api", "account", "business", "tracker", "crm", "strategy", "guardrails",
          "first_run", "scheduling")
 STATUSES = ("todo", "done", "pending", "skipped")
 SECRET_HINTS = ("token", "secret", "password", "refresh", "api_key", "apikey")

@@ -4,15 +4,19 @@ For a business whose own brand name gets searched and competitors (or resellers)
 brand results cheaply, block brand cannibalisation of non-brand campaigns, and keep brand spend from hiding how the
 rest of the account performs.
 
+Fits goals: any (combine it with the strategy for your goal)
+
 Config to match: a `brand` topic (your brand name and misspellings as substrings), its own campaign, the brand
 ad group mapped in `ad_group_topics`, and `winning_topics` without `brand` (brand traffic converts anyway; it is
 not evidence that ads create demand).
 
 ## Goal
-Keep brand impression share near the top at the lowest CPC, and report non-brand performance separately.
+The business goal lives in the profile in `argmax.yaml` (`business.goal`, `business.goal_description`); this
+section only says how this strategy pursues it: keep brand impression share near the top at the lowest CPC, and
+report non-brand performance separately against `business.primary_kpi`.
 
 ## Success signal
-- Counts: non-brand leads and wins (the real job of ads); brand leads are reported but not credited to ads.
+- Counts: non-brand `business.primary_kpi` (the real job of ads); brand results are reported but not credited to ads.
 - Leading signals only: `conversions.lead_signals`.
 - Noise, never judged on: brand clicks, sitelink clicks.
 

@@ -4,15 +4,21 @@ For a business that sells through a sales conversation (SaaS, agencies, B2B serv
 a CRM. The loop: find the topics that produce real deals, move spend there, cut waste everywhere else, and never
 let a noisy conversion steer the account. This is argmax's home turf.
 
+Fits goals: leads
+
 Config to match: `crm.source` set, `winning_topics` = the topics with wins, `stepping.enabled: true`,
 `guard.expected_bidding: MANUAL_CPC` until Phase 3, optionally `ref_codes.enabled: true`.
 
 ## Goal
-Find which topics, keywords and campaigns produce real CRM deals, then move spend there at the same total budget.
+The business goal lives in the profile in `argmax.yaml` (`business.goal`, `business.goal_description`); this
+section only says how this strategy pursues it: find which topics, keywords and campaigns produce real CRM deals,
+then move spend there at the same total budget.
 
 ## Success signal
-- Counts: CRM leads and wins (`crm.statuses.won`), ref-matched to clicks where possible.
-- Leading signals only: `conversions.lead_signals` (form submits, demo requests, signups).
+- Counts: `business.primary_kpi` (here: CRM leads and wins, `crm.statuses.won`), ref-matched to clicks where
+  possible.
+- Leading signals only: `conversions.lead_signals` (form submits, demo requests, signups); `business.kpi_conversions`
+  are the ones that stand for the KPI.
 - Noise, never judged on: `conversions.noise_signals` (chat opens, button clicks, page-view goals).
 
 ## Evidence rules

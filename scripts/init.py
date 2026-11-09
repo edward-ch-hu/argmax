@@ -1,9 +1,10 @@
 """Write argmax.yaml from answers. Non-interactive (what the onboarding agent calls) or interactive (by hand).
 
 Answers are a partial config (YAML or JSON) laid over argmax.example.yaml after its fictional parts are cleared
-(topics, ad group map, conversions, website, CRM, tracker): whatever you do not answer keeps the example's limits
-and thresholds. Shortcuts: "topics" may be a list of names (each becomes a substring of itself), and an empty or
-missing website.base_url turns ad tests off. The result is validated before anything is written.
+(business profile, topics, ad group map, conversions, website, CRM, tracker): whatever you do not answer keeps the
+example's limits and thresholds. Shortcuts: "topics" may be a list of names (each becomes a substring of itself), an
+empty or missing website.base_url turns ad tests off, and business.goal without primary_kpi gets the usual KPI for
+that goal (DEFAULT_KPI). The result is validated before anything is written.
 
 Usage: uv run scripts/init.py --answers answers.yaml [--dry-run] [--force] [--strategy b2b-lead-gen]
        uv run scripts/init.py                      (asks a few questions instead)
@@ -22,6 +23,8 @@ import yaml
 
 EXAMPLE, TARGET = Path("argmax.example.yaml"), Path("argmax.yaml")
 STRATEGIES = Path("strategies")
+DEFAULT_KPI = {"leads": "CRM wins", "sales": "orders", "roas": "purchase value per spend", "calls": "qualified calls",
+               "awareness": "impression share"}
 HEADER = ("# argmax config written by scripts/init.py. Comments for every field: argmax.example.yaml.\n"
           "# Secrets never go here: google-ads.yaml or GOOGLE_ADS_* env vars (SETUP.md).\n")
 
@@ -30,10 +33,13 @@ def cleared(base):
     """The example with its fictional business removed (limits and thresholds stay)."""
     c = copy.deepcopy(base)
     c["account"].update({"customer_id": None, "login_customer_id": None, "name": "my account"})
+    c["business"] = copy.deepcopy(config.DEFAULTS["business"])
     c["topics"], c["winning_topics"], c["ad_group_topics"] = {}, [], {}
     c["conversions"] = {"lead_signals": [], "noise_signals": []}
     c["website"]["base_url"] = None
-    c["ad_tests"]["campaign_locales"] = {}
+    c["website"].pop("locales", None)            # derived from business.markets
+    c["ad_tests"].pop("campaign_locales", None)  # derived from business.markets
+    c["ad_tests"].pop("default_locale", None)
     c["crm"] = copy.deepcopy(config.DEFAULTS["crm"])
     c["ref_codes"] = copy.deepcopy(config.DEFAULTS["ref_codes"])
     c["tracker"] = merge_plain(copy.deepcopy(config.DEFAULTS["tracker"]), {"backend": "files"})
@@ -58,6 +64,9 @@ def build(answers, base):
         answers["topics"] = {t.strip().lower().replace(" ", "_"): {"substrings": [t.strip().lower().replace("_", " ")],
                                                                     "words": []} for t in topics if t.strip()}
     c = merge_plain(cleared(base), answers)
+    b = c["business"]
+    if b.get("goal") in DEFAULT_KPI and not b.get("primary_kpi"):
+        b["primary_kpi"] = DEFAULT_KPI[b["goal"]]
     if not (c.get("website") or {}).get("base_url"):
         c["website"]["base_url"] = None
         c["ad_tests"]["enabled"] = False
@@ -113,6 +122,21 @@ def interactive(base):
         "name": ask("Account or business name", "my account"),
         "currency": ask("Account currency (ISO code)", "USD").upper(),
         "timezone": ask("Account time zone (IANA name)", "America/New_York")}}
+    goal = ask(f"Business goal ({' | '.join(config.GOALS)})", "leads",
+               check=lambda v: None if v in config.GOALS else ", ".join(config.GOALS))
+    language = ask("Ad language of your main market, as a site locale code (en, de, zh-tw)", "en")
+    a["business"] = {
+        "goal": goal,
+        "goal_description": ask("The goal in one line, in your words", "") or None,
+        "primary_kpi": ask("What success is counted in", DEFAULT_KPI[goal]),
+        "markets": [{"name": ask("Main market name", "Main"),
+                     "countries": ask_list("Its countries or regions (comma-separated)", ["US"]),
+                     "language": language}],
+        "report_language": ask("Language for reports and decisions", "English"),
+        "deal_currency": ask("Currency of deal values in your CRM", a["account"]["currency"]).upper()}
+    if a["business"]["deal_currency"] != a["account"]["currency"]:
+        cur, deal = a["account"]["currency"], a["business"]["deal_currency"]
+        a["crm"] = {"deal_value_fx": float(ask(f"How many {cur} is 1 {deal} (for ROI)", "1"))}
     a["limits"] = {"daily_budget_cap": float(ask("Total daily budget cap across enabled campaigns", "100"))}
     a["topics"] = ask_list("Topics you sell (comma-separated)", list(base["topics"]))
     names = [t.lower().replace(" ", "_") for t in a["topics"]]

@@ -3,14 +3,20 @@
 Copy a template from `strategies/` (or this file) to `STRATEGY.md` and make it yours. The routines read it every
 run; `uv run scripts/strategy_check.py` checks that the sections below exist and that target shares add up.
 Limits (budget cap, bid limits) live in `argmax.yaml`, not here: this file says where to go, the config says how
-fast the agent may move.
+fast the agent may move. The business profile (`business:` in `argmax.yaml`: goal, KPI, markets, report language,
+deal currency) says what the owner wants; this file does not restate it.
+
+Fits goals: leads
 
 ## Goal
-Find which topics, keywords and campaigns produce real deals, then move spend there. Example for the fictional
-Acme Analytics: grow trials that convert to paid plans, at the same total budget.
+The business goal lives in the profile in `argmax.yaml` (`business.goal`, `business.goal_description`); this
+section only says how this strategy pursues it: find which topics, keywords and campaigns produce real deals, then
+move spend there at the same total budget. (For the fictional Acme Analytics the profile says: goal leads, "Trials
+that turn into paid plans, at the same total budget".)
 
 ## Success signal
-- Counts: real CRM leads and wins (`crm.source`), tied to ads by ref codes when `ref_codes.enabled`.
+- Counts: `business.primary_kpi` (here: real CRM leads and wins, `crm.source`), tied to ads by ref codes when
+  `ref_codes.enabled`.
 - Leading signals only: the conversion actions in `conversions.lead_signals` (e.g. Demo Request, Signup).
 - Noise, never used for any judgment: `conversions.noise_signals` (e.g. Chat Widget Open). Shown in tables only.
 

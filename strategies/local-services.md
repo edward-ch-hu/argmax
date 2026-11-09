@@ -4,14 +4,18 @@ For a business that serves a local area and wins customers by phone calls and co
 studios, repair shops). Small budgets, so waste matters more than scale. The loop: right place, right hours,
 calls and forms that turn into booked jobs.
 
+Fits goals: calls, leads
+
 Config to match: `conversions.lead_signals: [Calls from ads, Contact Form]` (your actions), topics = services,
 a small `limits.daily_budget_cap`, `crm.source: csv` with a simple booked-jobs sheet if you have one.
 
 ## Goal
-Get booked jobs from the service area at a cost per job the business can afford, inside a tight daily budget.
+The business goal lives in the profile in `argmax.yaml` (`business.goal`, `business.goal_description`); this
+section only says how this strategy pursues it: get booked jobs from the service area (`business.markets`) at a
+cost per job the business can afford, inside a tight daily budget.
 
 ## Success signal
-- Counts: booked jobs (CRM or a simple sheet), and calls over 60 seconds.
+- Counts: `business.primary_kpi` (here: booked jobs from the CRM or a simple sheet, and calls over 60 seconds).
 - Leading signals only: contact form submits, all calls from ads.
 - Noise, never judged on: direction clicks, website visits, short calls under 30 seconds.
 
