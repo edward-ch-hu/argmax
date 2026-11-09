@@ -127,7 +127,7 @@ def test_doctor_business():
     assert doctor.business_status(make(**{"business.goal": None}))[0] == "PENDING"
     status, message = doctor.business_status(make())
     assert status == "OK" and "goal leads" in message and "North America (US/CA, ads in en)" in message
-    assert "reports in English" in message and message.endswith("deals in USD")
+    assert "reports in English" in message and message.endswith("deals in USD; manual CPC for good")
     cfg = make(**{"business.deal_currency": "EUR", "crm.source": "csv", "crm.deal_value_fx": 1.08})
     assert "deals in EUR (x 1.08 to USD)" in doctor.business_status(cfg)[1]
 

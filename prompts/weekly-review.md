@@ -78,6 +78,10 @@ workflow commits the runtime files after you finish. Everything else stays the s
      scripts/apply_changes.py <json>` (validate) and `--apply`. If it prints FAIL, fix the file; never work around
      it. Move toward the approved topic spend targets using spend-side data only.
    - Anything else (rare): a script under scripts/, validate first, then --apply.
+   - Bid strategy: with `business.bidding_end_state: manual_cpc`, never propose a bid strategy switch (Smart
+     Bidding, Target CPA, Maximize Conversions or any other) and never plan a phase toward one: bids stay Manual
+     CPC. With `smart_bidding`, the hand-off is proposed only when STRATEGY.md's last phase says its criteria are
+     met, as a "Needs yes" decision.
 7. Create one decision per new proposal (check for an open duplicate first). Then write log/<YYYY-MM-DD>.md with
    the weekly template in AGENTS.md, including Ad tests, Routine health and Open proposals.
 8. Commit by path (runtime files are gitignored on purpose):

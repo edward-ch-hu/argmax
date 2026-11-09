@@ -130,7 +130,9 @@ The business profile (`business:` in `argmax.yaml`) says what you want: the goal
 awareness), the KPI that counts, your markets and their ad languages, and the language you read reports in.
 `STRATEGY.md` is the agent's standing brief on how to get there: evidence rules, topic spend targets, phases.
 Start from a template in [strategies/](strategies/README.md) that fits your goal: B2B lead gen, e-commerce ROAS,
-local services, new-account discovery, brand defense. Or let `prompts/strategy-interview.md` interview you, or port
+local services, new-account discovery, brand defense. Each one asks where bidding ends up: a hand-off to Google's
+Smart Bidding (high, clean conversion volume) or agent-run manual CPC for good (few real deals, noisy conversions),
+recorded as `business.bidding_end_state` too. Or let `prompts/strategy-interview.md` interview you, or port
 your existing notes.
 
 ## Safety notes

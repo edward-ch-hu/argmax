@@ -36,6 +36,8 @@ CRM_SOURCES = ("none", "csv", "google_sheets")
 STATUSES = ("talking", "trial", "won", "lost_after_trial", "lost_no_trial")
 RESERVED_TOPICS = ("other", "none", "mixed")
 GOALS = ("leads", "sales", "roas", "calls", "awareness")
+# Where bidding ends up: a hand-off to Google's Smart Bidding, or Manual CPC run by the agent for good.
+BIDDING_END_STATES = ("smart_bidding", "manual_cpc")
 # Google Ads API access levels (per Cloud project since 2026-09-09) and their operations per day on production
 # accounts: https://developers.google.com/google-ads/api/docs/api-policy/access-levels . None = not known yet.
 ACCESS_LEVELS = {"unknown": None, "test": 0, "explorer": 2880, "basic": 15000, "standard": float("inf")}
@@ -43,7 +45,7 @@ IDEAS_MODES = ("auto", "off")
 
 DEFAULTS = {
     "business": {"goal": None, "goal_description": None, "primary_kpi": None, "kpi_conversions": [], "markets": [],
-                 "report_language": "English", "deal_currency": None},
+                 "report_language": "English", "deal_currency": None, "bidding_end_state": None},
     "account": {"customer_id": None, "login_customer_id": None, "name": "my account", "currency": None,
                 "timezone": None},
     "limits": {"daily_budget_cap": None, "weekly_bid_change": 0.20, "bid_floor": 0.20, "bid_ceiling": 5.00,
@@ -142,6 +144,12 @@ def validate_business(p, c):
     if b["goal"] is not None and not b["primary_kpi"]:
         p.append("business.primary_kpi: needed once business.goal is set (what success is counted in, e.g. CRM wins)")
     one_line(p, "business.report_language", b["report_language"], required=True)
+    end = b["bidding_end_state"]
+    if end is not None and end not in BIDDING_END_STATES:
+        p.append(f"business.bidding_end_state: must be one of {', '.join(BIDDING_END_STATES)} (got {end!r})")
+    elif end == "manual_cpc" and c["guard"]["expected_bidding"] != "MANUAL_CPC":
+        p.append("guard.expected_bidding: must be MANUAL_CPC while business.bidding_end_state is manual_cpc (bids stay "
+                 f"Manual CPC for good, so the daily guard alerts on any other strategy; got {c['guard']['expected_bidding']!r})")
     if b["deal_currency"] is None:
         b["deal_currency"] = a["currency"]
     elif not (isinstance(b["deal_currency"], str) and re.fullmatch(r"[A-Z]{3}", b["deal_currency"])):

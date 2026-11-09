@@ -28,6 +28,11 @@ business:                    # the business profile: what success means, where y
       campaign_prefix: "US - "   # campaigns starting with this belong to the market (ad_tests.campaign_locales derive from it)
   report_language: English   # weekly and monthly reports, decisions and the client update are written in it
   deal_currency: USD         # the currency of CRM deal values; defaults to account.currency (see crm.deal_value_fx)
+  bidding_end_state: manual_cpc   # smart_bidding | manual_cpc: where bidding ends up; must match STRATEGY.md's
+                             # "Bidding end state" line (doctor.py). smart_bidding: a last phase hands bids to Google's
+                             # Smart Bidding (high conversion volume, clean conversion data). manual_cpc: the agent keeps
+                             # Manual CPC for good (low volume or noisy conversions, real deals judged offline); then
+                             # guard.expected_bidding must stay MANUAL_CPC and no routine proposes a bid strategy switch
 
 limits:                      # the hard guardrails; apply_changes.py refuses a file that breaks them
   daily_budget_cap: 150      # total daily budget across enabled campaigns, account currency

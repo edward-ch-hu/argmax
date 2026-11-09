@@ -3,7 +3,8 @@
 Items: config (argmax.yaml), guardrails (when argmax.yaml and scripts/ last changed and by whom, and whether
 ARGMAX_CONFIG_YAML locks the config; the weekly report copies this line), repo (with gh, also under --offline: the
 GitHub origin and the github-issues repo must be PRIVATE, or every routine stops: logs hold account data and anyone
-could approve a decision on a public repo; WARN when gh cannot tell), business profile, strategy (STRATEGY.md) and whether business.goal fits it, credentials (google-ads.yaml or GOOGLE_ADS_* env vars, never
+could approve a decision on a public repo; WARN when gh cannot tell), business profile, strategy (STRATEGY.md), whether business.goal fits it and whether its bidding end state agrees
+with business.bidding_end_state, credentials (google-ads.yaml or GOOGLE_ADS_* env vars, never
 printed; no developer token needed), API access (skipped with --offline), API quota (api.access_level against the
 estimated operations per day), tracker, CRM (header row and status values only), ad library, onboarding progress.
 PENDING means waiting on something (Explorer access approval, an onboarding step); WARN
@@ -112,8 +113,10 @@ def business_status(cfg):
     markets = ", ".join(f"{m['name']} ({'/'.join(m['countries'])}, ads in {m['language']})" for m in b.markets)
     deals = b.deal_currency if b.deal_currency == cfg.account.currency else \
         f"{b.deal_currency} (x {cfg.crm.deal_value_fx:g} to {cfg.account.currency})"
+    end = {"smart_bidding": "smart bidding hand-off", "manual_cpc": "manual CPC for good"}.get(
+        b.bidding_end_state, "bidding end state not set")
     return "OK", (f"goal {b.goal}, KPI {b.primary_kpi} ({', '.join(b.kpi_conversions) or 'no conversion action'}); "
-                  f"markets {markets}; reports in {b.report_language}; deals in {deals}")
+                  f"markets {markets}; reports in {b.report_language}; deals in {deals}; {end}")
 
 
 GUARDED = ("argmax.yaml", "scripts/")
@@ -261,6 +264,9 @@ def check(offline=False, env=None):
         if cfg and cfg.business.goal is not None:
             g = strategy_check.goal_fit(text, cfg.business.goal)
             out.append((g[0], "goal fit", g[1]))
+        if cfg:
+            b = strategy_check.bidding_fit(text, cfg.business.bidding_end_state)
+            out.append((b[0], "bidding", b[1]))
 
     cred_file = Path("google-ads.yaml")
     file_data = (yaml.safe_load(cred_file.read_text()) or {}) if cred_file.exists() else None

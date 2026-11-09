@@ -6,6 +6,15 @@ the account inside the cap.
 
 Fits goals: roas, sales
 
+Bidding end state: smart bidding hand-off | agent-run manual CPC (permanent)
+- smart bidding hand-off: the last phase hands bids to Google's Smart Bidding. Fits high conversion volume and clean
+  conversion data that Google can learn from.
+- agent-run manual CPC (permanent): bids stay Manual CPC for good, set by the routines and judged on real deals
+  offline. Fits low volume or noisy conversions.
+Keep one choice on the line above; it must match `business.bidding_end_state` in argmax.yaml (smart_bidding or
+manual_cpc; `strategy_check.py` and `doctor.py` check). With manual CPC the routines never propose a bid strategy
+switch, and a winning group capped by its bid can get a ceiling test instead (README, "Experiments").
+
 Config to match: `conversions.lead_signals: [Purchase]` (your purchase action), topics = product categories,
 `crm.source: none` (Google Ads holds the value) or a CSV of orders if you track margin elsewhere,
 `ad_tests.enabled` only if product pages carry stable claims. argmax's topic table is lead-centric: read ROAS from
@@ -49,9 +58,14 @@ TBD until the first set gets a human "yes".
 - Pause keywords and products with spend over 3x average order value and no purchase.
 - Exit check: 50+ purchases in 30 days per campaign.
 
-### Phase 3: value-based Smart Bidding
+### Phase 3: the bidding end state (keep the variant picked above, delete the other)
+Smart bidding hand-off (value-based), the usual fit for a store with steady purchases:
 - Switch campaigns with enough purchases to Maximize Conversion Value, then Target ROAS at the Phase 2 ROAS.
 - Set `guard.expected_bidding` accordingly and `stepping.enabled: false` (Smart Bidding sets the bids).
+
+Agent-run manual CPC (permanent), for a small catalogue or few purchases a month:
+- Bids stay Manual CPC; the weekly keeps moving budget and bids toward the categories with the best ROAS. No
+  routine proposes switching a bid strategy.
 
 ## Agent autonomy overrides
 - Stricter: no bidding strategy change without a "yes" (it resets learning).

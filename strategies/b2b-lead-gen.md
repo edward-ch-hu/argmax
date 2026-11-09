@@ -6,8 +6,18 @@ let a noisy conversion steer the account. This is argmax's home turf.
 
 Fits goals: leads
 
+Bidding end state: smart bidding hand-off | agent-run manual CPC (permanent)
+- smart bidding hand-off: the last phase hands bids to Google's Smart Bidding. Fits high conversion volume and clean
+  conversion data that Google can learn from.
+- agent-run manual CPC (permanent): bids stay Manual CPC for good, set by the routines and judged on real deals
+  offline. Fits low volume or noisy conversions.
+Keep one choice on the line above; it must match `business.bidding_end_state` in argmax.yaml (smart_bidding or
+manual_cpc; `strategy_check.py` and `doctor.py` check). With manual CPC the routines never propose a bid strategy
+switch, and a winning group capped by its bid can get a ceiling test instead (README, "Experiments").
+
 Config to match: `crm.source` set, `winning_topics` = the topics with wins, `stepping.enabled: true`,
-`guard.expected_bidding: MANUAL_CPC` until Phase 3, optionally `ref_codes.enabled: true`.
+`guard.expected_bidding: MANUAL_CPC` (until a smart bidding hand-off, if that is the end state),
+`business.bidding_end_state` as picked above, optionally `ref_codes.enabled: true`.
 
 ## Goal
 The business goal lives in the profile in `argmax.yaml` (`business.goal`, `business.goal_description`); this
@@ -55,10 +65,17 @@ bigger moves are "Needs yes".
 - Winning search terms to exact match in their own ad group. Ad copy tests on winning-topic groups first.
 - Exit check: a campaign has 30+ lead signals or real CRM leads in 30 days.
 
-### Phase 3: Smart Bidding
+### Phase 3: the bidding end state (keep the variant picked above, delete the other)
+Smart bidding hand-off:
 - Upload real leads as offline conversions (click id) so bidding learns from deals.
 - Bid for lead signals and uploaded leads (Target CPA at the Phase 2 CPA), never for a noise signal.
 - Set `guard.expected_bidding` to the new strategy and `stepping.enabled: false` for those campaigns' groups.
+
+Agent-run manual CPC (permanent), the usual fit at a few real leads a week:
+- Bids stay Manual CPC, set by `daily_bids.py` and the weekly on CRM and ref-matched leads, not on Google's
+  conversion counts. No routine proposes switching a bid strategy.
+- A winning group capped by its bid (most impressions lost to rank at the ceiling) can get a ceiling test, an
+  experiment that starts only after a "yes".
 
 ## Agent autonomy overrides
 None: AGENTS.md defaults apply.

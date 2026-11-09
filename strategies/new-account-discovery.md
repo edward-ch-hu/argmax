@@ -5,6 +5,15 @@ broadly on Search, tighten fast on what the search terms show, and only then dec
 
 Fits goals: leads, sales, roas, calls
 
+Bidding end state: smart bidding hand-off | agent-run manual CPC (permanent)
+- smart bidding hand-off: the last phase hands bids to Google's Smart Bidding. Fits high conversion volume and clean
+  conversion data that Google can learn from.
+- agent-run manual CPC (permanent): bids stay Manual CPC for good, set by the routines and judged on real deals
+  offline. Fits low volume or noisy conversions.
+Keep one choice on the line above; it must match `business.bidding_end_state` in argmax.yaml (smart_bidding or
+manual_cpc; `strategy_check.py` and `doctor.py` check). With manual CPC the routines never propose a bid strategy
+switch, and a winning group capped by its bid can get a ceiling test instead (README, "Experiments").
+
 Config to match: `guard.expected_bidding: MANUAL_CPC`, `guard.search_networks_only: true`, a conservative
 `limits.daily_budget_cap`, `winning_topics: []` at first (no daily stepping until a topic shows deals),
 `ad_tests.enabled: false` until groups reach the impression floor.
@@ -46,6 +55,7 @@ TBD until discovery shows where deals come from (usually after Phase 2).
 
 ### Phase 3: tighten and pick winners
 - Move to the B2B lead-gen or e-commerce strategy template; set `winning_topics` and topic spend targets.
+- Keep the bidding end state picked above; a new account rarely has the volume for a smart bidding hand-off yet.
 
 ## Agent autonomy overrides
 - Stricter: no new campaigns without a "yes".

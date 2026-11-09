@@ -6,6 +6,15 @@ rest of the account performs.
 
 Fits goals: any (combine it with the strategy for your goal)
 
+Bidding end state: smart bidding hand-off | agent-run manual CPC (permanent)
+- smart bidding hand-off: the last phase hands bids to Google's Smart Bidding. Fits high conversion volume and clean
+  conversion data that Google can learn from.
+- agent-run manual CPC (permanent): bids stay Manual CPC for good, set by the routines and judged on real deals
+  offline. Fits low volume or noisy conversions.
+Keep one choice on the line above; it must match `business.bidding_end_state` in argmax.yaml (smart_bidding or
+manual_cpc; `strategy_check.py` and `doctor.py` check). With manual CPC the routines never propose a bid strategy
+switch, and a winning group capped by its bid can get a ceiling test instead (README, "Experiments").
+
 Config to match: a `brand` topic (your brand name and misspellings as substrings), its own campaign, the brand
 ad group mapped in `ad_group_topics`, and `winning_topics` without `brand` (brand traffic converts anyway; it is
 not evidence that ads create demand).

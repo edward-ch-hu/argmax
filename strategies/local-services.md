@@ -6,6 +6,15 @@ calls and forms that turn into booked jobs.
 
 Fits goals: calls, leads
 
+Bidding end state: smart bidding hand-off | agent-run manual CPC (permanent)
+- smart bidding hand-off: the last phase hands bids to Google's Smart Bidding. Fits high conversion volume and clean
+  conversion data that Google can learn from.
+- agent-run manual CPC (permanent): bids stay Manual CPC for good, set by the routines and judged on real deals
+  offline. Fits low volume or noisy conversions.
+Keep one choice on the line above; it must match `business.bidding_end_state` in argmax.yaml (smart_bidding or
+manual_cpc; `strategy_check.py` and `doctor.py` check). With manual CPC the routines never propose a bid strategy
+switch, and a winning group capped by its bid can get a ceiling test instead (README, "Experiments").
+
 Config to match: `conversions.lead_signals: [Calls from ads, Contact Form]` (your actions), topics = services,
 a small `limits.daily_budget_cap`, `crm.source: csv` with a simple booked-jobs sheet if you have one.
 
@@ -46,8 +55,12 @@ TBD until the first set gets a human "yes".
 - Pause keywords with spend over 2x target cost per job and no lead signal.
 - Exit check: 20+ booked jobs or calls over 60 seconds in 30 days.
 
-### Phase 3: Smart Bidding on calls and forms
+### Phase 3: the bidding end state (keep the variant picked above, delete the other)
+Smart bidding hand-off on calls and forms:
 - Maximize Conversions on lead signals, then Target CPA. Update `guard.expected_bidding`, turn stepping off.
+
+Agent-run manual CPC (permanent), when calls are few or many are not real jobs:
+- Bids stay Manual CPC, judged on booked jobs. No routine proposes switching a bid strategy.
 
 ## Agent autonomy overrides
 - Stricter: no location or ad schedule change without a "yes" (the owner knows the area and hours).

@@ -34,7 +34,6 @@ Changes nothing in Google Ads.
 """
 import math
 import copy
-import shutil
 import sys
 from pathlib import Path
 
@@ -216,7 +215,9 @@ def write(c, force=False):
     print(f"Wrote {TARGET}.")
 
 
-def copy_strategy(name):
+def copy_strategy(name, end_state=None):
+    """Copies strategies/<name>.md to STRATEGY.md (never over an existing one), with its "Bidding end state" line set
+    to business.bidding_end_state when that is known."""
     if Path("STRATEGY.md").exists():
         print("STRATEGY.md exists: left as it is.")
         return
@@ -224,8 +225,12 @@ def copy_strategy(name):
     if not src.exists():
         sys.exit(f"No strategy template {src}. Choose one of: "
                  + ", ".join(sorted(p.stem for p in STRATEGIES.glob("*.md") if p.stem != "README")))
-    shutil.copy(src, "STRATEGY.md")
-    print(f"Copied {src} to STRATEGY.md.")
+    text = src.read_text(encoding="utf-8")
+    if end_state:
+        import strategy_check
+        text = strategy_check.pick_bidding(text, end_state)
+    Path("STRATEGY.md").write_text(text, encoding="utf-8")
+    print(f"Copied {src} to STRATEGY.md" + (f" (bidding end state: {end_state})." if end_state else "."))
 
 
 def ask(question, default=None, check=None):
@@ -269,7 +274,11 @@ def interactive(base):
                      "countries": ask_list("Its countries or regions (comma-separated)", ["US"]),
                      "language": language}],
         "report_language": ask("Language for reports and decisions", "English"),
-        "deal_currency": ask("Currency of deal values in your CRM", a["account"]["currency"]).upper()}
+        "deal_currency": ask("Currency of deal values in your CRM", a["account"]["currency"]).upper(),
+        "bidding_end_state": ask("Where bidding ends up: smart_bidding (hand bids to Google once conversions are many "
+                                 "and clean) or manual_cpc (the agent keeps Manual CPC for good; low volume or noisy "
+                                 "conversions)", "manual_cpc",
+                                 check=lambda v: None if v in config.BIDDING_END_STATES else "smart_bidding or manual_cpc")}
     if a["business"]["deal_currency"] != a["account"]["currency"]:
         cur, deal = a["account"]["currency"], a["business"]["deal_currency"]
         a["crm"] = {"deal_value_fx": float(ask(f"How many {cur} is 1 {deal} (for ROI)", "1"))}
@@ -334,7 +343,7 @@ def main():
     write(c, "--force" in args)
     print(read_back(c, cpc, budget_total))
     if opt("--strategy"):
-        copy_strategy(opt("--strategy"))
+        copy_strategy(opt("--strategy"), c["business"].get("bidding_end_state"))
     print("Next: `uv run scripts/doctor.py` shows what is still missing.")
 
 

@@ -84,6 +84,9 @@ The business profile (`business:`) is what every report and decision is shaped b
 - `report_language` (default English): reports, decisions and, unless set apart, the client update.
 - `deal_currency` (default the account currency). When the CRM's deal values are in another currency, set
   `crm.deal_value_fx` to how much one unit of it is in the account currency (ROI = deal value x fx / spend).
+- `bidding_end_state`: `smart_bidding` (a last phase hands bids to Google) or `manual_cpc` (the agent keeps Manual
+  CPC for good; `guard.expected_bidding` must then be MANUAL_CPC). It must match STRATEGY.md's "Bidding end state"
+  line; `doctor.py` checks.
 Config sources, first match wins: `ARGMAX_CONFIG_YAML` (the whole YAML as text), `ARGMAX_CONFIG` (a path),
 `argmax.yaml`. `ARGMAX_CUSTOMER_ID` and `ARGMAX_LOGIN_CUSTOMER_ID` override the ids. `argmax.yaml` holds no
 secrets: in your private copy, commit it with `git add -f argmax.yaml` so cloud runs find it.

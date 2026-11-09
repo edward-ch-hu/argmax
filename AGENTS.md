@@ -19,8 +19,8 @@ print it, when no tracker works yet); they never onboard on their own.
    newest monthly report, and every open decision with its comments. They hold the owner's approvals and
    instructions.
 3. Read the business profile in `argmax.yaml` (`business.goal`, `goal_description`, `primary_kpi`,
-   `kpi_conversions`, `markets`, `report_language`, `deal_currency`) and `STRATEGY.md`: the current phase, the
-   Evidence rules, the topic spend targets, and any autonomy overrides.
+   `kpi_conversions`, `markets`, `report_language`, `deal_currency`, `bidding_end_state`) and `STRATEGY.md`: the
+   current phase, the Evidence rules, the topic spend targets, the bidding end state, and any autonomy overrides.
 
 ## Goal: find what produces the owner's KPI, and move spend there
 Success is what the business profile says, never a metric you pick: `business.goal` (leads, sales, roas, calls or
@@ -85,6 +85,10 @@ Apply on your own, then report:
 Never, without a human "yes" on a decision:
 - Raise the total daily budget above the configured budget cap, change conversion actions or their settings,
   billing, account access, or turn auto-apply recommendations back on. Write these as proposals.
+- Switch a campaign's bid strategy. With `business.bidding_end_state: manual_cpc` (STRATEGY.md: "agent-run manual
+  CPC (permanent)") never even propose it: bids stay Manual CPC for good, you are the bidding, and
+  `guard.expected_bidding` stays MANUAL_CPC. Only with `smart_bidding` may the strategy's last phase propose the
+  hand-off, as a "Needs yes" decision.
 - Change `argmax.yaml` limits (budget cap, bid limits, stepping, autonomy-related settings) or the business
   profile (`business:`). When the data suggests the goal or KPI is wrong (e.g. the owner says "leads" but every
   win is an online purchase), propose the change as a "Needs yes" decision.

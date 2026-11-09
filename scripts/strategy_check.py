@@ -7,6 +7,9 @@ a percentage (like 45 or 45%) or TBD. When none is TBD they must sum to 100; mix
 the table should be config topics (or "other"); unknown names are warnings, not failures.
 A "Fits goals: leads, calls" line (or "Fits goals: any") names the business.goal values the strategy is written
 for; a config goal outside it, or no such line, is a warning (doctor.py shows it as "goal fit").
+A "Bidding end state: ..." line says where bidding ends up: "smart bidding hand-off" or "agent-run manual CPC
+(permanent)". It must name one of them and agree with business.bidding_end_state (smart_bidding or manual_cpc):
+disagreeing is a failure, a missing line or a line still listing both is a warning (doctor.py: "bidding").
 
 Usage: uv run scripts/strategy_check.py [STRATEGY.md]
 """
@@ -74,6 +77,48 @@ def goal_fit(text, goal):
                     "matching template in strategies/ or change the goal")
 
 
+BIDDING_LINE = re.compile(r"^\W*bidding end state\W*:\s*(.+)$", re.IGNORECASE | re.MULTILINE)
+END_STATE_NAMES = {"smart_bidding": "smart bidding hand-off", "manual_cpc": "agent-run manual CPC (permanent)"}
+
+
+def bidding_end_state(text):
+    """(state, raw) from the "Bidding end state:" line: state is smart_bidding, manual_cpc, "both" (the template's
+    choice not made yet), "unknown", or None when there is no such line."""
+    m = BIDDING_LINE.search(text)
+    if not m:
+        return None, None
+    raw = m[1].strip()
+    words = raw.lower()
+    smart, manual = "smart" in words, "manual" in words
+    state = "both" if smart and manual else "smart_bidding" if smart else "manual_cpc" if manual else "unknown"
+    return state, raw
+
+
+def bidding_fit(text, end_state):
+    """(status, message) for STRATEGY.md's bidding end state against business.bidding_end_state. OK, WARN or FAIL."""
+    state, raw = bidding_end_state(text)
+    choices = " or ".join(f'"{v}"' for v in END_STATE_NAMES.values())
+    if state is None:
+        return "WARN", f"STRATEGY.md has no \"Bidding end state:\" line: add one with {choices}"
+    if state == "unknown":
+        return "FAIL", f"Bidding end state: '{raw}' is neither {choices}"
+    if state == "both":
+        return "WARN", (f"Bidding end state still lists both choices: keep {choices} (and the matching "
+                        "business.bidding_end_state)")
+    if end_state is None:
+        return "WARN", (f"STRATEGY.md says {END_STATE_NAMES[state]} but business.bidding_end_state is not set: set it "
+                        f"to {state}")
+    if end_state != state:
+        return "FAIL", (f"STRATEGY.md says {END_STATE_NAMES[state]} but business.bidding_end_state is {end_state}: "
+                        "make them agree (changing either is a \"Needs yes\" decision)")
+    return "OK", f"{END_STATE_NAMES[state]} in STRATEGY.md and business.bidding_end_state"
+
+
+def pick_bidding(text, end_state):
+    """The text with its "Bidding end state:" line set to `end_state` (smart_bidding or manual_cpc). Pure."""
+    return BIDDING_LINE.sub(f"Bidding end state: {END_STATE_NAMES[end_state]}", text, count=1)
+
+
 def check(text, topics=None):
     """(fails, warnings) for a STRATEGY.md text. topics: config topic names, for warnings."""
     fails, warnings = [], []
@@ -110,15 +155,17 @@ def main():
 
     try:
         cfg = config.load()
-        topics, goal = set(cfg.topics), cfg.business.goal
+        topics, goal, end_state = set(cfg.topics), cfg.business.goal, cfg.business.bidding_end_state
     except config.ConfigError:  # the check works without a config; it only skips topic name and goal warnings
-        topics = goal = None
+        topics = goal = end_state = None
     text = path.read_text(encoding="utf-8")
     fails, warnings = check(text, topics)
     if goal is not None:
         status, message = goal_fit(text, goal)
         if status == "WARN":
             warnings.append(message)
+    status, message = bidding_fit(text, end_state)
+    {"WARN": warnings, "FAIL": fails}.get(status, []).append(message)
     for w in warnings:
         print(f"WARN   {w}")
     for f in fails:
