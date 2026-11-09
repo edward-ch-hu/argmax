@@ -110,8 +110,10 @@ def lead_conversions(ga, resource, fields, where, cfg=None):
     `where`. Counts only conversions.lead_signals (metrics.all_conversions per conversion action, like ad_test.py),
     so noise signals never count. Rows without a lead-signal conversion are absent (read them as 0)."""
     signals = (cfg or config.get()).conversions.lead_signals
+    # GAQL needs a segment used in WHERE (other than date segments) to be selected too
+    select = list(fields) + [s for s in ("segments.ad_network_type",) if s in where and s not in fields]
     out = defaultdict(float)
-    for r in search(ga, f"""SELECT {", ".join(fields)}, segments.conversion_action_name, metrics.all_conversions
+    for r in search(ga, f"""SELECT {", ".join(select)}, segments.conversion_action_name, metrics.all_conversions
             FROM {resource} WHERE {where} AND segments.conversion_action_name IN {ads_client.quoted(signals)}
             AND metrics.all_conversions > 0"""):
         out[tuple(field(r, f) for f in fields)] += r.metrics.all_conversions
