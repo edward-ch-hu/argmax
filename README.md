@@ -63,19 +63,20 @@ Everything numeric lives in `argmax.yaml`. The agent may not change it without y
 
 ```mermaid
 flowchart LR
-  subgraph You
-    O[Owner] -- "yes / no / reverse" --> T
+  subgraph You["You"]
+    O["Owner"]
   end
   subgraph Agent["AI agent (Claude Code, Codex, Grok)"]
-    P[prompts/*.md] --> R[AGENTS.md rules]
+    P["prompts/*.md"] --> R["AGENTS.md rules"]
   end
-  R -- runs --> S[scripts/*.py]
-  S -- validate / --apply --> G[(Google Ads API)]
-  S -- reads --> C[(CRM: CSV or Sheet)]
-  S -- reads --> W[(Your website: ad claims)]
-  S -- writes --> L[log/, reports/, ledger]
-  R -- reports and decisions --> T[Tracker: GitHub Issues, files, ClickUp, Notion, Linear]
-  CFG[argmax.yaml + STRATEGY.md] --> S
+  O -->|"yes / no / reverse"| T
+  R -->|"runs"| S["scripts/*.py"]
+  S -->|"validate, then --apply"| G[("Google Ads API")]
+  S -->|"reads"| C[("CRM: CSV or Sheet")]
+  S -->|"reads"| W[("Your website: ad claims")]
+  S -->|"writes"| L["log/, reports/, ledger"]
+  R -->|"reports and decisions"| T["Tracker: GitHub Issues, files, ClickUp, Notion, Linear"]
+  CFG["argmax.yaml + STRATEGY.md"] --> S
   CFG --> R
 ```
 
