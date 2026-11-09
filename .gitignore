@@ -1,0 +1,25 @@
+# --- Secrets: never commit, in any fork.
+google-ads.yaml
+client_secret*.json
+*.pem
+.env
+.env.*
+
+# --- Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# --- Your account's files. In a PRIVATE fork that runs the cloud routines, delete this block so the routines can
+# --- commit their memory (logs, ledger, daily files, decisions) and read your config and strategy. Never in public.
+adgrad.yaml
+STRATEGY.md
+docs/ad_library.json
+log/*
+!log/.gitkeep
+reports/*
+!reports/.gitkeep
+decisions/*
+!decisions/.gitkeep

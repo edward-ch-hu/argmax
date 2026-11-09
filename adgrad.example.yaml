@@ -1,0 +1,142 @@
+# adgrad config. Copy to adgrad.yaml (gitignored) or run `uv run scripts/init.py`.
+# Every value below is a fictional example for "Acme Analytics", a made-up SaaS. Replace them with yours.
+# Secrets do NOT go here: Google Ads credentials live in google-ads.yaml or GOOGLE_ADS_* env vars.
+# Cloud routines: commit this file in your private fork, or put its contents in ADGRAD_CONFIG_YAML (see SETUP.md).
+
+account:
+  customer_id: "123-456-7890"        # the ad account the agent runs (10 digits, dashes optional)
+  login_customer_id: "111-222-3333"  # your manager (MCC) account; leave empty if you log in to the ad account directly
+  name: Acme Analytics               # used in report titles
+  currency: USD                      # the account's currency (check_connection.py warns on a mismatch)
+  timezone: America/New_York         # IANA name; the routines' "today" and "yesterday" use it
+
+limits:                      # the hard guardrails; apply_changes.py refuses a file that breaks them
+  daily_budget_cap: 150      # total daily budget across enabled campaigns, account currency
+  weekly_bid_change: 0.20    # an ad group bid may move at most 20% from its Monday bid per week
+  bid_floor: 0.30            # no ad group bid below this
+  bid_ceiling: 6.00          # or above this
+  allow_enable_performance_max: false
+
+guard:                       # daily_guard.py alerts
+  expected_bidding: MANUAL_CPC   # alert when an enabled campaign uses another strategy; null to skip
+  search_networks_only: true     # alert on Display Expansion / Search Partners in Search campaigns
+  overspend_multiple: 2.0        # alert when a campaign spends over 2x its daily budget in a day
+
+stepping:                    # daily_bids.py: daily bid steps for winning-topic Search ad groups
+  enabled: true
+  step: 0.10                 # 10% per day
+  weekly_limit: 0.30         # at most +/-30% from Monday's bid within a week
+  window_days: 14            # steps for 14 days from its first step, then the weekly owns the bid
+  rank_lost_band: [0.20, 0.50]   # aim: lose 20% to 50% of impressions to ad rank
+  budget_lost_max: 0.20      # hold when the campaign loses over 20% to budget (fix the budget instead)
+  min_impressions: 30        # never lower a bid on fewer impressions than this
+  new_groups: {}             # "Ad group name": "YYYY-MM-DD" skips the weekly limit until that date
+
+negatives:                   # daily_negatives.py and keyword_review.py
+  max_per_day: 10
+  lookback_days: 7
+  min_cost: 5.0              # a search term with this much spend and 0 conversions is a negative
+  min_clicks: 10             # or this many clicks and 0 conversions
+  held_notify_cost: 8.0      # NOTIFY when a held winning-topic term costs this much
+  junk_words: [free, download, crack, torrent, jobs, job, salary, career, tutorial, course, github, reddit]
+
+keyword_review:
+  min_positive_conversions: 2
+  min_pause_cost: 40.0
+  ideas_per_ad_group: 8
+  ideas_min_monthly_searches: 10
+
+match_type_review:
+  broad_to_phrase_share: 0.30
+  phrase_to_exact_share: 0.50
+  min_off_intent_spend: 15.0
+
+# What you sell, so spend, search terms and CRM leads can be grouped. substrings match anywhere in the text;
+# words match whole tokens only (use them for short words like "bi" that hide inside other words).
+topics:
+  analytics:
+    substrings: [analytics, "web stats", "traffic report", "visitor tracking"]
+    words: [bi]
+  dashboards:
+    substrings: [dashboard, "kpi board", "metrics wall"]
+    words: []
+  reporting:
+    substrings: [reporting, "scheduled report", "pdf report"]
+    words: []
+winning_topics: [analytics]          # topics that close deals: daily bid steps, held negatives, test priority
+ad_group_topics:                     # exact ad group names -> topic (anything else counts as "other")
+  "Analytics": analytics
+  "Dashboards": dashboards
+  "Reporting": reporting
+  "RMK - Analytics": analytics
+
+conversions:
+  lead_signals: ["Demo Request", "Signup"]   # counted as leading signals (never as deals)
+  noise_signals: ["Chat Widget Open"]        # shown in tables, never used for any judgment
+
+website:                     # the source of truth for every ad claim (claims_check.py)
+  base_url: https://www.example.com
+  locales: [en]
+  user_agent: adgrad claims check
+
+ad_tests:
+  enabled: true
+  library: docs/ad_library.json      # copy docs/ad_library.example.json there and fill it from your own site
+  campaign_locales: {"US - ": en}    # campaign name prefix -> locale; others use default_locale
+  default_locale: en
+  min_impressions_14d: 300
+  max_running: 3
+  max_new_per_week: 1
+  min_days: 28
+  max_days: 56
+  min_arm_impressions: 1000
+  z: 1.96
+  claims_max_age_days: 7
+
+crm:
+  source: none               # none | csv | google_sheets
+  csv_path: docs/crm.example.csv
+  sheet_id: ""               # google_sheets: the id in the sheet's URL
+  sheet_range: "Sheet1!A1:Z"
+  date_format: null          # strptime format if dates are not YYYY-MM-DD or YYYY/MM/DD
+  columns:                   # header names in the first row
+    id: null                 # a stable lead id, if you have one (else name + email + date is hashed)
+    lead_date: Lead date
+    status: Status
+    topics: [Product]        # one header or a list (first non-empty wins); matched against topics above
+    deal_value: MRR
+    name: Name               # never printed; used for the fingerprint and the client-update leak check
+    email: Email
+    ref: null                # a column holding ref codes; null searches every cell
+  statuses:                  # your status values -> funnel stage (case-insensitive exact match)
+    talking: [New, Contacted, Quoted]
+    trial: [Trial]
+    won: [Won]
+    lost_after_trial: [Lost after trial]
+    lost_no_trial: [Lost]
+  default_status: talking    # an unknown status counts as an open lead
+  deal_value_label: MRR
+  deal_value_fx: 1.0         # multiply deal values by this to get the account currency (ROI)
+  stale_after_days: 14       # ALERT when the CRM has no new entry for this long
+
+ref_codes:                   # optional: tie CRM leads to ad clicks (docs/ref-codes.md)
+  enabled: false
+  prefix: "AG-"
+  live_from: null            # YYYY-MM-DD your site started adding codes
+  test_codes: []             # codes from your own test clicks, ignored
+
+tracker:                     # where reports and decisions go: read trackers/<backend>.md
+  backend: github-issues     # github-issues | files | clickup | notion | linear
+  github:
+    repo: ""                 # owner/name; empty = the repo of the checkout
+    assignee: ""             # GitHub login that gets decisions (no @)
+  clickup: {weekly_list_id: "", monthly_list_id: "", decisions_list_id: "", assignee: ""}
+  notion: {weekly_database_id: "", monthly_database_id: "", decisions_database_id: ""}
+  linear: {team_id: "", project_id: "", assignee: ""}
+
+report:
+  history_start: null        # YYYY-MM the monthly history starts; null = the last 12 months
+  client_update:
+    enabled: true            # the monthly writes a message for a client or stakeholder
+    language: English
+    blocklist: []            # extra words the client update must never contain (competitor brands, codenames)
