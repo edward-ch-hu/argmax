@@ -1,7 +1,8 @@
 """Match type review: which Search keywords match too broadly. Read-only.
 
 For each enabled Search keyword (positive), from search_term_view with the keyword segment over DAYS of Google
-Search traffic: spend, clicks, conversions, and the spend on off-intent search terms. A term is off-intent when
+Search traffic: spend, clicks, lead-signal conversions (conversions.lead_signals only, as in keyword_review.py), and
+the spend on off-intent search terms. A term is off-intent when
   - it would be a negative under keyword_review.py's rule (on its totals in the campaign over DAYS, not held), or
   - it has a junk word (negatives.junk_words), or
   - its main topic differs from the ad group's topic (ad_group_topics) and is not a winning topic.
@@ -23,7 +24,7 @@ from pathlib import Path
 import ads_client
 import config
 from ads_client import rows
-from keyword_review import junk_word, money, negative_rule, period_of, search_campaigns
+from keyword_review import junk_word, lead_conversions, money, negative_rule, period_of, search_campaigns, with_conversions
 from topics import ad_group_topic, main_topic
 
 TOP_TERMS = 5
@@ -73,19 +74,21 @@ def main():
                 "micros": 0, "off_micros": 0, "clicks": 0, "conversions": 0.0, "off_terms": defaultdict(int)}
 
     found, totals = [], defaultdict(lambda: [0, 0, 0.0])
-    for r in rows(ga, f"""SELECT campaign.id, ad_group.name, search_term_view.search_term,
-            segments.keyword.ad_group_criterion, segments.ad_network_type, metrics.cost_micros, metrics.clicks,
-            metrics.conversions FROM search_term_view
-            WHERE campaign.id IN ({ids}) AND {period} AND segments.ad_network_type = 'SEARCH'"""):
+    where = f"campaign.id IN ({ids}) AND {period} AND segments.ad_network_type = 'SEARCH'"
+    key = ("campaign.id", "segments.keyword.ad_group_criterion", "search_term_view.search_term")
+    terms = rows(ga, f"""SELECT campaign.id, ad_group.name, search_term_view.search_term,
+            segments.keyword.ad_group_criterion, segments.ad_network_type, metrics.cost_micros, metrics.clicks
+            FROM search_term_view WHERE {where}""")
+    for r, m in with_conversions(terms, key, lead_conversions(ga, "search_term_view", key, where, cfg)):
         if r.segments.keyword.ad_group_criterion in keywords:
-            found.append(r)
+            found.append((r, m))
         t = totals[(r.campaign.id, r.search_term_view.search_term.lower())]
-        t[0] += r.metrics.cost_micros
-        t[1] += r.metrics.clicks
-        t[2] += r.metrics.conversions
+        t[0] += m.cost_micros
+        t[1] += m.clicks
+        t[2] += m.conversions
 
-    for r in found:
-        k, term, m = keywords[r.segments.keyword.ad_group_criterion], r.search_term_view.search_term, r.metrics
+    for r, m in found:
+        k, term = keywords[r.segments.keyword.ad_group_criterion], r.search_term_view.search_term
         cost, clicks, conv = totals[(r.campaign.id, term.lower())]
         off = off_intent(term, (money(cost), clicks, conv), ad_group_topic(k["ad_group"]), cfg)
         k["micros"] += m.cost_micros

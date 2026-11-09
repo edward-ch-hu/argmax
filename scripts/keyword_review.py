@@ -2,9 +2,15 @@
 
 Writes reports/keyword-review-<date>.md (to read) and .json (to edit, then apply).
 
+Conversions here are lead-signal conversions only (conversions.lead_signals, segmented by conversion action):
+noise signals and every other action never save a term from being a negative, never make a positive and never keep
+a keyword from a pause. Cost and clicks come from a second query, since a query segmented by conversion action
+returns only conversion metrics and drops the rows without conversions.
+
 Rules, on the last DAYS of Google Search traffic only (thresholds in argmax.yaml):
-  NEGATIVE  search term with clicks but no conversion after negatives.min_cost spend or negatives.min_clicks clicks,
-            or any click on a junk word (negatives.junk_words: free, jobs, download...)
+  NEGATIVE  search term with no lead-signal conversion after negatives.min_cost spend over at least
+            negatives.min_cost_clicks clicks (so one expensive click in a quiet account is not enough), or after
+            negatives.min_clicks clicks, or any click on a junk word (negatives.junk_words: free, jobs, download...)
   HELD      a would-be negative on a winning topic without a junk word: listed in held_winning for the weekly to
             judge (move a row to negatives to block it); apply_keyword_review.py ignores this list
   POSITIVE  search term with keyword_review.min_positive_conversions+ conversions that isn't a keyword yet -> phrase
@@ -23,7 +29,9 @@ Then:  edit "approve" in the .json, run scripts/apply_keyword_review.py <json>
 import json
 import sys
 from collections import defaultdict
+from functools import reduce
 from pathlib import Path
+from types import SimpleNamespace
 
 import ads_client
 import config
@@ -47,11 +55,38 @@ def negative_rule(term, cost, clicks, conversions, cfg=None):
     cfg = cfg or config.get()
     n = cfg.negatives
     junk = junk_word(term, n.junk_words)
-    if conversions == 0 and (junk and clicks or cost >= n.min_cost or clicks >= n.min_clicks):
-        reason = f"junk word '{junk}'" if junk else f"{cfg.account.currency} {cost} / {clicks} clicks, 0 conv"
+    if conversions == 0 and (junk and clicks or (cost >= n.min_cost and clicks >= n.min_cost_clicks)
+                             or clicks >= n.min_clicks):
+        reason = f"junk word '{junk}'" if junk else f"{cfg.account.currency} {cost} / {clicks} clicks, 0 lead signals"
         topic = main_topic(term, cfg.topics)
         return reason, topic, topic in cfg.winning_topics and not junk
     return None
+
+
+def field(row, dotted):
+    """The value at a dotted GAQL field name of a result row, e.g. field(r, "campaign.id")."""
+    return reduce(getattr, dotted.split("."), row)
+
+
+def lead_conversions(ga, resource, fields, where, cfg=None):
+    """{tuple of the `fields` values: lead-signal conversions} on `resource` (a GAQL FROM) for the rows matching
+    `where`. Counts only conversions.lead_signals (metrics.all_conversions per conversion action, like ad_test.py),
+    so noise signals never count. Rows without a lead-signal conversion are absent (read them as 0)."""
+    signals = (cfg or config.get()).conversions.lead_signals
+    out = defaultdict(float)
+    for r in search(ga, f"""SELECT {", ".join(fields)}, segments.conversion_action_name, metrics.all_conversions
+            FROM {resource} WHERE {where} AND segments.conversion_action_name IN {ads_client.quoted(signals)}
+            AND metrics.all_conversions > 0"""):
+        out[tuple(field(r, f) for f in fields)] += r.metrics.all_conversions
+    return out
+
+
+def with_conversions(rows, key_fields, conversions):
+    """[(row, totals)]: each row's cost_micros and clicks with its lead-signal conversions from `conversions` (keyed by
+    the values of `key_fields`; a key's conversions go to its first row only, so nothing counts twice)."""
+    left = dict(conversions)
+    return [(r, SimpleNamespace(cost_micros=r.metrics.cost_micros, clicks=r.metrics.clicks,
+                                conversions=left.pop(tuple(field(r, f) for f in key_fields), 0.0))) for r in rows]
 
 
 def period_of(days):
@@ -64,22 +99,38 @@ def search_campaigns(ga):
             "AND campaign.advertising_channel_type = 'SEARCH'")}
 
 
-def search_terms(ga, campaigns, period):
-    """[(row, metrics)] per ad group and search term on Google Search, for terms not yet added or excluded."""
+TERM_KEY = ("campaign.id", "ad_group.id", "search_term_view.search_term")
+
+
+def search_terms(ga, campaigns, period, cfg=None):
+    """[(row, totals)] per ad group and search term on Google Search, for terms not yet added or excluded. totals has
+    cost_micros, clicks and conversions (lead signals only)."""
     if not campaigns:
         return []
+    where = (f"campaign.id IN ({','.join(map(str, campaigns))}) AND {period} "
+             "AND segments.ad_network_type = 'SEARCH'")
+    found = [r for r in search(ga, f"""SELECT campaign.id, ad_group.id, ad_group.name, search_term_view.search_term,
+            search_term_view.status, segments.ad_network_type, metrics.cost_micros, metrics.clicks
+            FROM search_term_view WHERE {where}""")]
     out = []
-    for r in search(ga, f"""SELECT campaign.id, ad_group.id, ad_group.name, search_term_view.search_term,
-            search_term_view.status, segments.ad_network_type, metrics.cost_micros, metrics.clicks, metrics.conversions
-            FROM search_term_view WHERE campaign.id IN ({",".join(map(str, campaigns))}) AND {period}
-            AND segments.ad_network_type = 'SEARCH'"""):
+    for r, m in with_conversions(found, TERM_KEY, lead_conversions(ga, "search_term_view", TERM_KEY, where, cfg)):
         if r.search_term_view.status.name not in ("NONE", "UNKNOWN"):
             continue  # already added or excluded
-        m = r.metrics
         out.append(({"campaign_id": r.campaign.id, "campaign": campaigns[r.campaign.id], "ad_group_id": r.ad_group.id,
                      "ad_group": r.ad_group.name, "text": r.search_term_view.search_term, "cost": money(m.cost_micros),
                      "clicks": m.clicks, "conversions": round(m.conversions, 1)}, m))
     return out
+
+
+def keyword_stats(ga, ids, period, cfg=None):
+    """[(row, totals)] per enabled keyword over the period; totals as in search_terms (lead-signal conversions)."""
+    where = f"campaign.id IN ({ids}) AND {period} AND ad_group_criterion.status = 'ENABLED'"
+    key = ("ad_group_criterion.resource_name",)
+    found = [r for r in search(ga, f"""SELECT campaign.id, ad_group.name, ad_group_criterion.resource_name,
+            ad_group_criterion.keyword.text, ad_group_criterion.keyword.match_type,
+            ad_group_criterion.quality_info.quality_score, metrics.cost_micros, metrics.clicks
+            FROM keyword_view WHERE {where}""")]
+    return with_conversions(found, key, lead_conversions(ga, "keyword_view", key, where, cfg))
 
 
 def main():
@@ -104,7 +155,7 @@ def main():
     out = {"date": str(ads_client.today()), "days": days, "currency": cfg.account.currency, "negatives": [],
            "held_winning": [], "positives": [], "pauses": [], "ideas": []}
 
-    for row, m in search_terms(ga, campaigns, period):
+    for row, m in search_terms(ga, campaigns, period, cfg):
         negative = negative_rule(row["text"], row["cost"], m.clicks, m.conversions, cfg)
         if negative:
             reason, topic, held = negative
@@ -113,19 +164,18 @@ def main():
             else:
                 out["negatives"].append({**row, "match": "EXACT", "reason": reason, "approve": True})
         elif m.conversions >= k.min_positive_conversions and row["text"].lower() not in existing[row["campaign_id"]]:
-            out["positives"].append({**row, "match": "PHRASE", "reason": f"{row['conversions']} conv", "approve": False})
+            out["positives"].append({**row, "match": "PHRASE", "reason": f"{row['conversions']} lead signals",
+                                     "approve": False})
 
-    for r in search(ga, f"""SELECT campaign.id, ad_group.name, ad_group_criterion.resource_name,
-            ad_group_criterion.keyword.text, ad_group_criterion.keyword.match_type,
-            ad_group_criterion.quality_info.quality_score, metrics.cost_micros, metrics.clicks, metrics.conversions
-            FROM keyword_view WHERE campaign.id IN ({ids}) AND {period} AND ad_group_criterion.status = 'ENABLED'"""):
-        m, kw = r.metrics, r.ad_group_criterion
+    for r, m in keyword_stats(ga, ids, period, cfg):
+        kw = r.ad_group_criterion
         if money(m.cost_micros) >= k.min_pause_cost and m.conversions == 0:
             out["pauses"].append({"campaign": campaigns[r.campaign.id], "ad_group": r.ad_group.name,
                                   "resource_name": kw.resource_name, "text": kw.keyword.text,
                                   "match": kw.keyword.match_type.name,
                                   "quality_score": kw.quality_info.quality_score or None, "cost": money(m.cost_micros),
-                                  "clicks": m.clicks, "reason": f"{cfg.account.currency} {money(m.cost_micros)}, 0 conv",
+                                  "clicks": m.clicks,
+                                  "reason": f"{cfg.account.currency} {money(m.cost_micros)}, 0 lead signals",
                                   "approve": False})
 
     out["ideas"], note = keyword_ideas(client, ga, campaigns, existing)

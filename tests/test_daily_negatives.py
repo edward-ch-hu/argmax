@@ -14,6 +14,10 @@ def test_negative_rule():
     assert negative_rule("web analytics pricing", 6.0, 3, 1) is None  # converted
     assert negative_rule("cheap thing", 1.0, 2, 0) is None  # under both floors
     assert negative_rule("cheap thing", 0.0, 10, 0) is not None  # click floor
+    assert negative_rule("one pricey click", 9.0, 1, 0) is None  # cost floor needs negatives.min_cost_clicks clicks
+    assert negative_rule("two pricey clicks", 9.0, 2, 0) is None
+    assert negative_rule("three pricey clicks", 9.0, 3, 0) is not None
+    assert negative_rule("free one click", 0.5, 1, 0) is not None  # a junk word needs one click only
     assert junk_word("Analytics JOBS") == "jobs"
 
 
