@@ -1,5 +1,6 @@
 """Smoke test: checks argmax.yaml, lists every Google Ads account the credentials can reach, and says whether the
-configured customer_id is one of them.
+configured customer_id is one of them. Needs only the OAuth client and refresh token (no developer token). Errors
+come with what to do: Test access only (apply for Explorer), the AUTHORIZATION_ERROR known issue, login_customer_id.
 
 Usage: uv run scripts/check_connection.py
 """
@@ -17,8 +18,8 @@ def main():
     try:
         response = service.list_accessible_customers()
     except GoogleAdsException as ex:
-        for error in ex.failure.errors:
-            print(f"Error: {error.message}")
+        status, message = ads_client.explain_api_error(ads_client.error_text(ex))
+        print(f"{status:7}{message}")
         raise SystemExit(1) from None
     ids = [name.removeprefix("customers/") for name in response.resource_names]
     print(f"Connected. {len(ids)} directly accessible account(s):")
@@ -28,8 +29,10 @@ def main():
         account = ads_client.rows(client.get_service("GoogleAdsService"),
                                   "SELECT customer.descriptive_name, customer.currency_code, customer.time_zone FROM customer")
     except GoogleAdsException as ex:
-        print(f"FAIL   cannot read account {cfg.account.customer_id}: {ex.failure.errors[0].message}")
-        print("       Check account.customer_id and account.login_customer_id (your manager account) in argmax.yaml.")
+        status, message = ads_client.explain_api_error(ads_client.error_text(ex))
+        print(f"{status:7}cannot read account {cfg.account.customer_id}: {message}")
+        print("       Check account.customer_id in argmax.yaml. account.login_customer_id is only for an ad account you "
+              "reach through a manager account (its id); leave it empty when your login has direct access.")
         raise SystemExit(1) from None
     c = account[0].customer
     print(f"OK     account {cfg.account.customer_id}: {c.descriptive_name} ({c.currency_code}, {c.time_zone})")

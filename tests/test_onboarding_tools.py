@@ -18,6 +18,7 @@ def test_init_build_clears_the_fictional_example():
     c = init.build(ANSWERS, EXAMPLE)
     cfg = init.validate(c)
     assert cfg.account.customer_id == "2223334444" and cfg.account.login_customer_id is None
+    assert cfg.api.access_level == "unknown"  # read off the Overview page during onboarding, not the example's
     assert set(cfg.topics) == {"boots", "rain_jackets"} and cfg.topics["rain_jackets"]["substrings"] == ["rain jackets"]
     assert cfg.ad_group_topics == {} and cfg.conversions.noise_signals == []
     assert cfg.ad_tests.enabled is False and cfg.website.base_url is None  # no site given: ad tests off
@@ -102,7 +103,9 @@ def test_doctor_credentials():
     full = {k: "x" for k in doctor.CREDENTIAL_KEYS}
     assert doctor.credentials_status(full, {})[0] == "OK"
     assert doctor.credentials_status(dict(full, refresh_token="INSERT_REFRESH_TOKEN"), {})[0] == "PENDING"
-    assert doctor.credentials_status(dict(full, developer_token=""), {})[0] == "FAIL"
+    assert doctor.credentials_status(dict(full, client_secret=""), {})[0] == "FAIL"
+    assert "developer_token" not in doctor.CREDENTIAL_KEYS  # sunset 2026-09-09: optional, never required
+    assert "optional" in doctor.credentials_status(dict(full, developer_token="abc"), {})[1]
     assert doctor.credentials_status(None, {})[0] == "PENDING"
     env = {f"GOOGLE_ADS_{k.upper()}": "x" for k in doctor.CREDENTIAL_KEYS}
     status, message = doctor.credentials_status(None, env)
@@ -111,7 +114,12 @@ def test_doctor_credentials():
 
 def test_doctor_api_errors():
     assert doctor.api_error_status("DEVELOPER_TOKEN_NOT_APPROVED The developer token is not approved")[0] == "PENDING"
-    assert doctor.api_error_status("USER_PERMISSION_DENIED")[0] == "FAIL"
+    status, message = doctor.api_error_status("authorization_error: CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION x")
+    assert status == "PENDING" and "Explorer" in message
+    status, message = doctor.api_error_status("authorization_error: AUTHORIZATION_ERROR Authorization of the client failed.")
+    assert status == "FAIL" and "new Cloud project" in message
+    status, message = doctor.api_error_status("authorization_error: USER_PERMISSION_DENIED no access")
+    assert status == "FAIL" and "new Cloud project" not in message and "login_customer_id" in message
 
 
 def test_doctor_crm_and_tracker():

@@ -8,7 +8,8 @@ from conftest import EXAMPLE, ROOT, make
 def test_example_loads_and_normalises():
     cfg = make()
     assert cfg.account.customer_id == "1234567890"
-    assert cfg.account.login_customer_id == "1112223333"
+    assert cfg.account.login_customer_id is None  # a single account, no manager
+    assert make(**{"account.login_customer_id": "111-222-3333"}).account.login_customer_id == "1112223333"
     assert str(cfg.tz) == "America/New_York"
     assert cfg.limits.daily_budget_cap == 150
     assert cfg.winning_topics == ["analytics"]

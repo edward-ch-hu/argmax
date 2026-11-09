@@ -33,6 +33,7 @@ def cleared(base):
     """The example with its fictional business removed (limits and thresholds stay)."""
     c = copy.deepcopy(base)
     c["account"].update({"customer_id": None, "login_customer_id": None, "name": "my account"})
+    c["api"] = copy.deepcopy(config.DEFAULTS["api"])  # unknown until the owner reads it off the Overview page
     c["business"] = copy.deepcopy(config.DEFAULTS["business"])
     c["topics"], c["winning_topics"], c["ad_group_topics"] = {}, [], {}
     c["conversions"] = {"lead_signals": [], "noise_signals": []}
@@ -117,11 +118,16 @@ def interactive(base):
     digits = lambda v: None if config.digits(v) else "10 digits, like 123-456-7890"  # noqa: E731
     a = {"account": {
         "customer_id": ask("Google Ads customer id (the ad account)", check=digits),
-        "login_customer_id": ask("Manager (MCC) account id, empty if none", "",
+        "login_customer_id": ask("Manager account id, only if you reach the ad account through one (empty for a "
+                                 "single account)", "",
                                  check=lambda v: None if not v or config.digits(v) else "10 digits or empty") or None,
         "name": ask("Account or business name", "my account"),
         "currency": ask("Account currency (ISO code)", "USD").upper(),
         "timezone": ask("Account time zone (IANA name)", "America/New_York")}}
+    levels = [k for k in config.ACCESS_LEVELS]
+    a["api"] = {"access_level": ask(f"Google Ads API access level on your Cloud project's Overview page "
+                                    f"({' | '.join(levels)})", "unknown",
+                                    check=lambda v: None if v in levels else ", ".join(levels))}
     goal = ask(f"Business goal ({' | '.join(config.GOALS)})", "leads",
                check=lambda v: None if v in config.GOALS else ", ".join(config.GOALS))
     language = ask("Ad language of your main market, as a site locale code (en, de, zh-tw)", "en")

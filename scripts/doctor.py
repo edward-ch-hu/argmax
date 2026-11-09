@@ -1,8 +1,9 @@
 """What is set up and what is missing: one OK / FAIL / PENDING line per item. Changes nothing anywhere.
 
 Items: config (argmax.yaml), business profile, strategy (STRATEGY.md) and whether business.goal fits it, credentials (google-ads.yaml or GOOGLE_ADS_* env vars, never
-printed), API access (skipped with --offline), tracker, CRM (header row and status values only), ad library,
-onboarding progress. PENDING means waiting on something (a developer token approval, an onboarding step); WARN
+printed; no developer token needed), API access (skipped with --offline), API quota (api.access_level against the
+estimated operations per day), tracker, CRM (header row and status values only), ad library, onboarding progress.
+PENDING means waiting on something (Explorer access approval, an onboarding step); WARN
 means it works but looks wrong (e.g. goal roas with a lead-gen strategy); FAIL means something is wrong. Exit 1 when
 anything FAILs.
 
@@ -14,36 +15,63 @@ import subprocess
 import sys
 from pathlib import Path
 
+import ads_client
 import config
 import yaml
 
-CREDENTIAL_KEYS = ("developer_token", "client_id", "client_secret", "refresh_token")
+CREDENTIAL_KEYS = ads_client.REQUIRED_KEYS  # client_id, client_secret, refresh_token; a developer token is optional
+
+# Estimated Google Ads API operations per run (Search/SearchStream request = 1, each mutate operation = 1, failed
+# requests count too). How they are counted: SETUP.md, "API access levels and quota". The weekly figure is the busy
+# case (validate and apply both counted, keyword ideas on); Monday runs the weekly only, Tuesday to Sunday the daily.
+OPS_ESTIMATE = {"daily scout": 60, "weekly review": 400}
 
 
 def credentials_status(file_data, env):
     """(status, message) for Google Ads credentials from google-ads.yaml data (or None) and the environment. Pure."""
     if file_data is not None:
         source = "google-ads.yaml"
-        values = {k: str(file_data.get(k) or "") for k in CREDENTIAL_KEYS}
+        values = {k: str(file_data.get(k) or "") for k in (*CREDENTIAL_KEYS, "developer_token")}
     else:
         source = "GOOGLE_ADS_* env vars"
-        values = {k: env.get(f"GOOGLE_ADS_{k.upper()}", "") for k in CREDENTIAL_KEYS}
+        values = {k: env.get(f"GOOGLE_ADS_{k.upper()}", "") for k in (*CREDENTIAL_KEYS, "developer_token")}
         if not any(values.values()):
             return "PENDING", "no google-ads.yaml and no GOOGLE_ADS_* env vars (SETUP.md, onboarding step c)"
-    missing = [k for k, v in values.items() if not v or v.startswith("INSERT_")]
+    missing = [k for k in CREDENTIAL_KEYS if ads_client.placeholder(values[k])]
     if missing == ["refresh_token"]:
         return "PENDING", f"{source}: no refresh token yet (uv run scripts/get_refresh_token.py client_secret.json)"
     if missing:
         return "FAIL", f"{source}: missing {', '.join(missing)}"
-    return "OK", f"{source}: all four values set"
+    token = "" if ads_client.placeholder(values["developer_token"]) else \
+        " (a developer_token is set too: optional, Google ignores it since 2026-09-09)"
+    return "OK", f"{source}: OAuth client and refresh token set{token}"
 
 
 def api_error_status(message):
-    """PENDING for a developer token still waiting on approval (test accounts only), else FAIL. Pure."""
-    m = message.upper().replace(" ", "_")
-    if "DEVELOPER_TOKEN_NOT_APPROVED" in m or "ONLY_APPROVED_FOR_USE_WITH_TEST_ACCOUNTS" in m or "TEST_ACCOUNTS" in m:
-        return "PENDING", "the developer token works on test accounts only until Google approves Basic access"
-    return "FAIL", message
+    """(status, message with what to do) for an API error: PENDING while the Cloud project has Test access only,
+    else FAIL. Pure."""
+    return ads_client.explain_api_error(message)
+
+
+def quota_status(cfg, estimate=None):
+    """(status, message): the access level in argmax.yaml against the estimated operations per day. Pure."""
+    estimate = estimate or OPS_ESTIMATE
+    level = cfg.api.access_level
+    limit = config.ACCESS_LEVELS[level]
+    peak = max(estimate.values())
+    runs = ", ".join(f"{k} up to {v:,}" for k, v in estimate.items())
+    if level == "unknown":
+        return "PENDING", (f"api.access_level is unknown: read it on the Google Ads API Overview page "
+                           f"(console.cloud.google.com/google/ads-apis/overview) and set it ({runs} operations a day)")
+    if level == "test":
+        return "PENDING", ("api.access_level is test: test accounts only. Apply for Explorer on the Google Ads API "
+                           "Overview page (usually approved automatically)")
+    if peak > limit:
+        return "WARN", f"{level} allows {limit:,} operations a day; argmax may need {runs}: apply for Basic"
+    allowed = "unlimited" if limit == float("inf") else f"{limit:,}"
+    note = "; no Keyword Planner ideas on explorer (Basic, after brand verification, adds them)" \
+        if level == "explorer" and cfg.keyword_review.ideas != "off" else ""
+    return "OK", f"{level}: {allowed} operations a day on live accounts, argmax needs {runs}{note}"
 
 
 def crm_status(values, cfg):
@@ -134,6 +162,10 @@ def check(offline=False, env=None):
     cred = credentials_status(file_data, env)
     out.append((cred[0], "credentials", cred[1]))
 
+    if cfg:
+        q = quota_status(cfg)
+        out.append((q[0], "api quota", q[1]))
+
     if offline:
         out.append(("PENDING", "api", "skipped (--offline)"))
     elif cred[0] != "OK" or cfg is None:
@@ -179,8 +211,10 @@ def api_check(cfg):
         rows = ads_client.rows(client.get_service("GoogleAdsService"),
                                "SELECT customer.descriptive_name, customer.currency_code, customer.time_zone FROM customer")
     except GoogleAdsException as ex:
-        status, message = api_error_status("; ".join(f"{e.error_code} {e.message}" for e in ex.failure.errors))
+        status, message = api_error_status(ads_client.error_text(ex))
         return status, "api", message
+    except SystemExit as e:  # missing credentials
+        return "FAIL", "api", str(e)
     except Exception as e:  # e.g. a bad refresh token
         return "FAIL", "api", f"{type(e).__name__}: {e}"
     c = rows[0].customer
