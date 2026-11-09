@@ -51,7 +51,7 @@ DEFAULTS = {
     "guard": {"expected_bidding": "MANUAL_CPC", "search_networks_only": True, "overspend_multiple": 2.0},
     "stepping": {"enabled": True, "step": 0.10, "weekly_limit": 0.30, "window_days": 14,
                  "rank_lost_band": [0.20, 0.50], "budget_lost_max": 0.20, "min_impressions": 30, "new_groups": {}},
-    "negatives": {"max_per_day": 10, "lookback_days": 7, "held_notify_cost": 5.0, "min_cost": 3.0, "min_clicks": 10,
+    "negatives": {"max_per_day": 10, "lookback_days": 7, "held_notify_cost": 5.0, "min_cost": 3.0, "min_cost_clicks": 3, "min_clicks": 10,
                   "junk_words": ["free", "download", "crack", "torrent", "jobs", "job", "salary", "career",
                                  "tutorial", "course", "github", "reddit"]},
     "api": {"access_level": "unknown"},
@@ -259,6 +259,7 @@ def validate(c):
     number(p, "negatives.lookback_days", n["lookback_days"], 1, 90)
     number(p, "negatives.min_cost", n["min_cost"], 0)
     number(p, "negatives.min_clicks", n["min_clicks"], 1)
+    number(p, "negatives.min_cost_clicks", n["min_cost_clicks"], 1)
     number(p, "negatives.held_notify_cost", n["held_notify_cost"], 0)
     str_list(p, "negatives.junk_words", n["junk_words"])
     level = c["api"]["access_level"]

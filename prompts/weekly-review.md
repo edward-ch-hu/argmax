@@ -8,9 +8,11 @@ rules (Autonomy, decisions, facts, templates); this file holds the steps. For ev
 In CI: if the environment variable `ARGMAX_COMMIT` is `workflow`, skip every git commit, pull and push step: the
 workflow commits the runtime files after you finish. Everything else stays the same.
 
-1. Setup: install uv if missing (`pip install uv`), then `uv sync`. Run `uv run scripts/doctor.py`. If config,
-   credentials or API access FAIL, create a report titled "Google Ads agent: setup failed <date>" with the doctor
-   output (no secrets), and stop. If onboarding is incomplete, report that and stop.
+1. Setup: install uv if missing (`pip install uv`), then `uv sync`. Run `uv run scripts/doctor.py`. If the repo
+   line FAILs (the repo is public), stop and print only that line: write nothing to the repo or the tracker. If
+   config, credentials or API access FAIL, create a report titled "Google Ads agent: setup failed <date>" with the
+   doctor output (no secrets), and stop. If onboarding is incomplete, report that and stop. Keep doctor's
+   "guardrails" line for the report header.
 2. Read, before deciding anything:
    - AGENTS.md (follow it exactly), the business profile (`business:` in argmax.yaml: goal, primary KPI and its
      conversion actions, markets, report language) and STRATEGY.md (phase, Evidence rules, topic spend targets,
@@ -27,7 +29,7 @@ workflow commits the runtime files after you finish. Everything else stays the s
 4. Data:
    - `uv run scripts/daily_scout.py` (records Sunday, since the daily skips Mondays; it also backfills and prints
      MISSED), then `uv run scripts/daily_bids.py --apply`. Keep both scripts' NOTIFY lines.
-   - `uv run scripts/performance_snapshot.py 7 > reports/snapshot-<date>.json`, plus `uv run scripts/gaql.py
+   - `uv run scripts/performance_snapshot.py 7 --out reports/snapshot-<date>.json`, plus `uv run scripts/gaql.py
      "<query>"` for anything specific. Compare with last week's log.
    - Read reports/daily/week-<last Monday>.json (one entry per day, Monday to Sunday).
    - `uv run scripts/crm.py --since <last Monday>` (new leads, the funnel, the ref fill rate) and
@@ -81,11 +83,11 @@ workflow commits the runtime files after you finish. Everything else stays the s
    `git add -f log/<YYYY-MM-DD>.md reports/ decisions/ STRATEGY.md && git commit -m "Weekly review <YYYY-MM-DD>"`,
    then `git pull --rebase` and `git push`. If the rebase conflicts: copy this run's files (the log, the snapshot,
    the review and changes JSON files, reports/ad_tests.json, reports/claims_check.json, decisions/, STRATEGY.md and
-   this run's lines of reports/changes.jsonl) to a temp folder, `git rebase --abort`, `git reset --hard
+   this run's lines of reports/changes.jsonl) to `.argmax/tmp/`, `git rebase --abort`, `git reset --hard
    origin/<branch>`, copy them back (append the ledger lines), run `uv run scripts/daily_scout.py <Sunday>` and
    `uv run scripts/daily_bids.py --apply` again (both safe to re-run), commit and push. Do not re-run the other
    apply scripts or ad_test.py: those changes are already live. If pushing is still refused, push a branch and say
    so in the report.
-9. Create the weekly report "<YYYY-MM-DD> Google Ads weekly": the 5-line header from AGENTS.md (Reporting), then
+9. Create the weekly report "<YYYY-MM-DD> Google Ads weekly": the header from AGENTS.md (Reporting: 6 lines weekly, 5 monthly), then
    the log entry. Never use em-dashes. Never put CRM names or emails anywhere. Commit messages carry no co-author
    line.

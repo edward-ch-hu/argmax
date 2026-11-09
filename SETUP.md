@@ -4,10 +4,15 @@ The fastest path is your agent: say "onboard me" (`prompts/onboarding.md`). This
 `uv run scripts/doctor.py` shows what is still missing at any point.
 
 ## 0. Your private copy
-argmax keeps logs, reports and decisions about your account in the repo, so run it from a private copy of this
-template: `gh repo create my-argmax --private --template edward-ch-hu/argmax --clone`, then add the public repo as a
-read-only `upstream` (`BOOTSTRAP.md`, `docs/updating.md`). Install `git`, `uv` (https://docs.astral.sh/uv/) and,
-for GitHub, `gh`. Then `uv sync && uv run pytest -q`.
+argmax keeps logs, reports and decisions about your account in the repo, so run it from a private copy: clone the
+public repo, keep it as a read-only `upstream`, and push to a new private repo (`BOOTSTRAP.md`):
+```bash
+git clone https://github.com/edward-ch-hu/argmax my-argmax && cd my-argmax
+git remote rename origin upstream && git remote set-url --push upstream DISABLED
+gh repo create my-argmax --private --source . --remote origin --push
+```
+Never a GitHub fork (always public). The shared history makes updates a plain merge (`docs/updating.md`). Install
+`git`, `uv` (https://docs.astral.sh/uv/) and, for GitHub, `gh`. Then `uv sync && uv run pytest -q`.
 
 ## 1. Google Ads API access
 Since September 9, 2026 you need no developer token and no manager account: API access belongs to the Google Cloud
@@ -15,8 +20,11 @@ project that owns your OAuth client, and your own Google login (the one that ope
 1. **Google Cloud project**: https://console.cloud.google.com , new project.
 2. **Enable the Google Ads API**: APIs and Services, Library, "Google Ads API", Enable (also **Google Sheets API** if
    your CRM is a Google Sheet). This alone gives the project **Test** access: test accounts only.
-3. **OAuth consent screen** (Google Auth Platform): External, app name "argmax", your email; under Audience add your
-   Google account as a test user.
+3. **OAuth consent screen** (Google Auth Platform): External, app name "argmax", your email. Then, under Audience,
+   set **Publishing status: In production** ("Publish app"). This matters: an External app left in "Testing" gets
+   refresh tokens that expire after 7 days, and every routine then fails with `invalid_grant`. A personal app in
+   production needs no Google verification for your own use; the consent page will say "Google hasn't verified this
+   app". That warning is expected for an app you made yourself and safe to click through (Advanced, Go to argmax).
 4. **OAuth client**: Credentials, Create credentials, OAuth client ID, **Desktop app**. Download the JSON into the
    repo root as `client_secret.json` (gitignored).
 5. **Apply for Explorer**: the Google Ads API Overview page, https://console.cloud.google.com/google/ads-apis/overview
@@ -39,16 +47,25 @@ uses the ad account itself as the login customer).
 ## 2. Credentials
 ```bash
 cp google-ads.example.yaml google-ads.yaml        # gitignored
-# fill in client_id and client_secret (from client_secret.json); nothing else is needed
+# client_id and client_secret come from client_secret.json; get_refresh_token.py fills them in when they are
+# still placeholders (and creates google-ads.yaml from the example when it is missing)
 uv run scripts/get_refresh_token.py client_secret.json   # browser sign-in with the login that opens the ad account
+# no browser on this machine (server, container, SSH)? add --console: it prints a URL to open on any device
 uv run scripts/accounts.py                        # the accounts you can reach, with currency and time zone
 ```
 The Python library needs no developer token from google-ads 32.0.0 on (`pyproject.toml` asks for 32 or later).
+`get_refresh_token.py` writes the token into `google-ads.yaml` and never prints it, so it stays out of terminal logs
+and agent transcripts. For cloud runs, copy it from that file into the `GOOGLE_ADS_REFRESH_TOKEN` secret yourself.
 
 ## 3. argmax.yaml
 ```bash
 cp argmax.example.yaml argmax.yaml                # or: uv run scripts/init.py (asks), or --answers <file>
+uv run scripts/init.py --answers <file> --derive --dry-run   # sizes the money limits from your account
 ```
+Money limits (`limits.daily_budget_cap`, `bid_floor`, `bid_ceiling`, `negatives.min_cost`, `held_notify_cost`,
+`keyword_review.min_pause_cost`, `match_type_review.min_off_intent_spend`) are in the account currency. The example's
+values suit a USD account with a CPC of about 2; `init.py --derive` sizes them from your 30-day average Search CPC,
+highest bid and today's budgets (the multiples are in `scripts/init.py`), or `--cpc <amount>` from a CPC you give.
 Set at least: `account` (customer_id, currency, timezone from `accounts.py`; login_customer_id only for an
 account listed "via manager"), `api.access_level` (from the Overview page),
 `business` (the profile below), `limits.daily_budget_cap`, `topics`, `winning_topics`, `ad_group_topics`,
@@ -106,12 +123,32 @@ simply do not start.
 
 Environment variables for cloud and CI runs (never commit these):
 `GOOGLE_ADS_CLIENT_ID`, `GOOGLE_ADS_CLIENT_SECRET`, `GOOGLE_ADS_REFRESH_TOKEN` (required), plus `GH_TOKEN` for
-the github-issues tracker and optionally `ARGMAX_CONFIG_YAML`. Optional: `GOOGLE_ADS_LOGIN_CUSTOMER_ID` (only for an
+the github-issues tracker and `ARGMAX_CONFIG_YAML` (recommended: the guardrails lock, below). Optional: `GOOGLE_ADS_LOGIN_CUSTOMER_ID` (only for an
 account reached through a manager), `GOOGLE_ADS_DEVELOPER_TOKEN` (an old token, ignored by Google),
 `GOOGLE_ADS_USE_PROTO_PLUS` (defaults to True). Empty values are ignored.
 
 The routines commit their memory (`log/`, `reports/`, `decisions/`) to your private copy with `git add -f`, because
-those paths are gitignored in the public template. That is what lets the next run read the last one.
+those paths are gitignored in the public repo. That is what lets the next run read the last one.
+
+## Guardrails lock
+The scripts refuse anything outside the limits, and no argument at run time changes that. What keeps the limits
+themselves out of the agent's reach is the run environment, not the agent's good will: a routine agent works in a
+checkout it can write to, so it could edit `argmax.yaml` or a script before running it. Three things close that:
+1. **Config in the environment.** Put the whole config in `ARGMAX_CONFIG_YAML` (a GitHub Actions secret or
+   variable, the cloud task's environment, or the cron environment). `config.py` reads it before any file, so with
+   it set `argmax.yaml` in the repo is advisory: keep it as a readable copy, but the scripts never read limits from
+   it. `doctor.py` says "config locked by ARGMAX_CONFIG_YAML" and warns when the file and the variable differ. To
+   change a limit, you change the variable; the agent cannot.
+2. **A headless allowlist.** Routines may run `uv run scripts/*`, `uv sync`, the git commands that commit their
+   files and the tracker's `gh` commands, and edit only `log/`, `reports/`, `decisions/`, `.argmax/tmp/` and
+   `STRATEGY.md` where the agent supports path rules (Claude Code does; `docs/agents/<agent>.md` has each agent's
+   exact list and what it cannot scope). Never `uv *` (it allows `uv run python -c`, a direct API call), never edits
+   to `scripts/` or `argmax.yaml`. The workflow examples also fail the run, and commit nothing, when the engine or
+   the config changed.
+3. **Visible drift.** `doctor.py` prints "argmax.yaml and scripts/ last changed <date> <commit> by <author>", and
+   every weekly report copies it into its header. A change you did not make is the first thing to look at.
+Without the lock (a local run, an agent with no allowlist) the limits still hold against every run that uses the
+scripts, but nothing stops a determined agent from editing them first. Review such runs.
 
 ## 9. Manual commands worth knowing
 ```bash
@@ -160,6 +197,12 @@ The busiest day (Monday) stays under 400 operations, about 14% of Explorer's 2,8
 sessions with your agent (many `gaql.py` queries) share the same daily quota.
 
 ## Troubleshooting
+- **invalid_grant, "Token has been expired or revoked"** (`doctor.py`, `check_connection.py` or a routine): the
+  refresh token no longer works. Usual cause: the OAuth consent screen is still in "Testing", where Google expires
+  refresh tokens after 7 days. Open Google Auth Platform, Audience, and click "Publish app" (Publishing status: In
+  production; the "unverified app" warning on the consent page is expected for a personal app and safe to click
+  through). Then run `get_refresh_token.py` again and update `GOOGLE_ADS_REFRESH_TOKEN` wherever the routines run.
+  Other causes: you removed argmax's access in your Google account, or the token went unused for 6 months.
 - **CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION** (older API versions: ACTION_NOT_PERMITTED; with an old token:
   DEVELOPER_TOKEN_NOT_APPROVED): the project has Test access only. Apply for Explorer (step 1.5). An approved token
   that was never used with a project did not move to it: apply for Explorer on the project that owns your OAuth client.

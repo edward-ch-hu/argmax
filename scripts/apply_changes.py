@@ -22,10 +22,11 @@ change is appended to reports/changes.jsonl (ledger.py) for the monthly change a
 
 Refuses the whole file (FAIL lines, exit 1, nothing changed) when:
 - the total daily budget across enabled campaigns after the change is over limits.daily_budget_cap (status changes
-  in the same file count; paused campaigns don't)
+  in the same file count; paused campaigns don't; a budget shared by several campaigns counts once)
 - an ad group bid is more than limits.weekly_bid_change away from that group's bid at the start of the week
   (Monday 00:00 in the account time zone), or outside limits.bid_floor to limits.bid_ceiling
-- a bid is set on a winning-topic Search group still inside its daily_bids.py stepping window
+- a bid is set on a winning-topic Search group still inside its daily_bids.py stepping window (window_days from the
+  group's first daily evaluation; a group the daily never evaluated has no window)
 - a Performance Max campaign is enabled (unless limits.allow_enable_performance_max)
 - a name does not match exactly one campaign, ad group or keyword, or the same thing is listed twice
 All changes go in one atomic request.
@@ -84,9 +85,9 @@ def load_account(ga, with_keywords):
     return camps, groups, keywords
 
 
-def evaluate(changes, camps, groups, keywords, bid_history, firsts, today, cfg=None):
+def evaluate(changes, camps, groups, keywords, bid_history, starts, today, cfg=None):
     """Check a changes file against the account (plain dicts). Pure, for tests.
-    bid_history: {ad group resource: [(time, old, new, was_enabled)]} since Monday; firsts: daily_bids.first_steps().
+    bid_history: {ad group resource: [(time, old, new, was_enabled)]} since Monday; starts: daily_bids.window_starts().
     Returns (fails, plan, (total before, total after)); plan = {(kind, resource): {fields, labels, ledger}}."""
     cfg = cfg or config.get()
     lim = cfg.limits
@@ -145,7 +146,7 @@ def evaluate(changes, camps, groups, keywords, bid_history, firsts, today, cfg=N
             fails.append(f"bid {where}: cpc must be a positive number")
             continue
         if daily_bids.managed(g["channel"], g["name"]) and cfg.stepping.enabled and \
-                not daily_bids.settled(g["campaign"], g["name"], today, firsts):
+                daily_bids.stepping(g["campaign"], g["name"], today, starts):
             fails.append(f"bid {where}: daily_bids.py is still stepping this winning-topic group; change its rules instead")
             continue
         start = daily_bids.week_start_bid(bid_history.get(g["resource"], []), g["bid"])
@@ -199,12 +200,10 @@ def evaluate(changes, camps, groups, keywords, bid_history, firsts, today, cfg=N
             fails.append(f"status {s}: level must be campaign, ad_group or keyword")
 
     def total(after):
-        out = 0.0
-        for c in camps:
-            status = new_status.get(c["resource"], c["status"]) if after else c["status"]
-            if status == "ENABLED":
-                out += new_budget.get(c["resource"], c["budget"]) if after else c["budget"]
-        return round(out, 2)
+        """Across enabled campaigns; a shared budget counts once (its amount cannot change here)."""
+        return ads_client.budget_total(
+            (c["budget_resource"], new_budget.get(c["resource"], c["budget"]) if after else c["budget"])
+            for c in camps if (new_status.get(c["resource"], c["status"]) if after else c["status"]) == "ENABLED")
 
     totals = (total(False), total(True))
     if totals[1] > lim.daily_budget_cap + 1e-9:
@@ -218,7 +217,7 @@ def check(ga, changes):
     today = ads_client.today()
     monday = today - timedelta(days=today.weekday())
     bid_history = daily_bids.bid_changes(ga, monday, today + timedelta(days=1))
-    return evaluate(changes, camps, groups, keywords, bid_history, daily_bids.first_steps(), today)
+    return evaluate(changes, camps, groups, keywords, bid_history, daily_bids.window_starts(), today)
 
 
 def operations(client, plan):
@@ -263,8 +262,9 @@ def main():
     ops, labels = operations(client, plan)
     print("VALIDATE ONLY (no changes)" if validate_only else "APPLYING CHANGES")
     try:
-        ga.mutate(request={"customer_id": ads_client.customer_id(), "mutate_operations": ops,
-                           "validate_only": validate_only})
+        with ledger.pending([e for p in plan.values() for e in p["ledger"]], not validate_only):
+            ga.mutate(request={"customer_id": ads_client.customer_id(), "mutate_operations": ops,
+                               "validate_only": validate_only})
     except GoogleAdsException as ex:
         for e in ex.failure.errors:
             index = next((p.index for p in e.location.field_path_elements if p.field_name == "mutate_operations"), None)
@@ -274,8 +274,6 @@ def main():
         print(f"{'VALID' if validate_only else 'DONE '}  {label}")
     print(f"total daily budget across enabled campaigns: {cfg.account.currency} {before:.2f} -> {after:.2f} "
           f"(cap {cfg.limits.daily_budget_cap:g})")
-    if not validate_only:
-        ledger.append([e for p in plan.values() for e in p["ledger"]])
 
 
 if __name__ == "__main__":

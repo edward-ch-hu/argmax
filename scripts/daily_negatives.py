@@ -62,14 +62,12 @@ def blocked(ga, campaigns):
 
 def daily_lines(run_day=None, entries=None):
     """Ledger lines of daily negatives: all of them, or those added on `run_day`."""
-    entries = ledger.read() if entries is None else entries
-    return [e for e in entries if e.get("routine") == "daily" and e.get("field") == "negative"
+    return [e for e in ledger.read(entries=entries) if e.get("routine") == "daily" and e.get("field") == "negative"
             and e.get("after") and (run_day is None or e["date"] == str(run_day))]
 
 
 def undone(entries=None):
-    entries = ledger.read() if entries is None else entries
-    return {(e.get("campaign"), norm(e.get("text", ""))) for e in entries
+    return {(e.get("campaign"), norm(e.get("text", ""))) for e in ledger.read(entries=entries)
             if e.get("field") == "negative" and e.get("after") is None}
 
 
@@ -141,12 +139,11 @@ def run(day, apply_changes):
               f"({r['reason']})")
     if not to_add:
         print("Nothing to add.")
-    done = apply(client, {"negatives": to_add}, validate_only, routine="daily") if to_add else []
+    annotate = lambda r: {k: r[k] for k in ("campaign", "text", "cost", "clicks")}  # noqa: E731
+    done = apply(client, {"negatives": to_add}, validate_only, routine="daily", annotate=annotate) if to_add else []
     if validate_only:
         return
-    entries = [{**e, "campaign": r["campaign"], "text": r["text"], "cost": r["cost"], "clicks": r["clicks"]}
-               for r, e in done]
-    ledger.append(entries)
+    entries = [e for _, e in done]  # apply() logged them to the ledger
 
     path = week_path(day)
     week = read(path)
@@ -185,17 +182,17 @@ def undo(term, campaign, reason, validate_only):
     op = client.get_type("CampaignCriterionOperation")
     op.remove = crit.resource_name
     print("VALIDATE ONLY (no changes)" if validate_only else "APPLYING CHANGES")
+    text = crit.keyword.text
+    entry = {**ledger.entry("keyword", f"{campaign} (campaign negative) / {text}", "negative", "EXACT", None,
+                            reason, main_topic(text), "buyer searches can show the ads again"),
+             "campaign": campaign, "text": text}
     try:
-        client.get_service("CampaignCriterionService").mutate_campaign_criteria(
-            request={"customer_id": ads_client.customer_id(), "operations": [op], "validate_only": validate_only})
+        with ledger.pending([entry], not validate_only):
+            client.get_service("CampaignCriterionService").mutate_campaign_criteria(
+                request={"customer_id": ads_client.customer_id(), "operations": [op], "validate_only": validate_only})
     except GoogleAdsException as ex:
-        sys.exit(f"FAIL  {campaign}: [{crit.keyword.text}] <- " + "; ".join(e.message for e in ex.failure.errors))
-    print(f"{'VALID' if validate_only else 'DONE '}  remove negative  {campaign}: [{crit.keyword.text}]")
-    if not validate_only:
-        text = crit.keyword.text
-        ledger.append([{**ledger.entry("keyword", f"{campaign} (campaign negative) / {text}", "negative", "EXACT", None,
-                                       reason, main_topic(text), "buyer searches can show the ads again"),
-                        "campaign": campaign, "text": text}])
+        sys.exit(f"FAIL  {campaign}: [{text}] <- " + "; ".join(e.message for e in ex.failure.errors))
+    print(f"{'VALID' if validate_only else 'DONE '}  remove negative  {campaign}: [{text}]")
 
 
 def main():

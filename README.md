@@ -20,11 +20,13 @@ answer a few "yes / no" decisions.
 spend* = argmax_{spend in guardrails} E[deals | spend]
 ```
 
-The guardrails are the constraint set, and they are not negotiable: the optimiser is an LLM, the constraints are
-plain Python.
+The guardrails are the constraint set: the optimiser is an LLM, the constraints are plain Python that refuses, and
+no argument at run time moves them. They are kept out of the agent's reach by the run environment: the config is
+locked in an environment variable the agent cannot edit, and headless runs may only call argmax's scripts and edit
+its data folders (SETUP.md, "Guardrails lock").
 
-This public repo is a **GitHub template**: you run argmax from your own private copy, because its logs and reports
-hold your account's data.
+You run argmax from your own **private** copy of this public repo (a clone pushed to a new private repo, never a
+fork), because its logs and reports hold your account's data and its decisions are approvals.
 
 ## What it does
 
@@ -40,7 +42,8 @@ hold your account's data.
 
 ## Guardrails (the actual product)
 
-The agent is clever; the guardrails are dumb, deterministic Python, and they win every argument.
+The agent is clever; the guardrails are dumb, deterministic Python. A script that refuses cannot be talked round;
+the lock and the allowlist below make sure the agent cannot edit the script or the limits instead.
 
 | Guardrail | Where | What happens on a breach |
 |---|---|---|
@@ -57,7 +60,11 @@ The agent is clever; the guardrails are dumb, deterministic Python, and they win
 | Approval inbox: "Needs yes", "Unless you say no", "Done, reply reverse to undo" | your tracker | silence has a defined meaning |
 | Privacy: no CRM names or emails anywhere, only fingerprints | `crm.py`, `check_external.py` | client update refused |
 
-Everything numeric lives in `argmax.yaml`. The agent may not change it without your "yes".
+Everything numeric lives in the config. Lock it by putting it in `ARGMAX_CONFIG_YAML` in the run environment:
+then `argmax.yaml` in the repo is an advisory copy, and only you can change a limit. Headless runs are allowed
+`uv run scripts/*` and edits to `log/`, `reports/`, `decisions/` and `STRATEGY.md`, not `scripts/` or
+`argmax.yaml`, and `doctor.py` and every weekly report show when `argmax.yaml` and `scripts/` last changed and by
+whom. The rules also tell the agent never to change limits without your "yes"; the lock is what enforces it.
 
 ## Architecture
 
@@ -91,7 +98,8 @@ flowchart LR
 ## Quickstart (about 15 minutes of your time; no developer token, no manager account)
 
 1. **Make your private copy.** Paste the one-message prompt at the top into your agent, or by hand:
-   `gh repo create my-argmax --private --template edward-ch-hu/argmax --clone` (details in `BOOTSTRAP.md`).
+   `git clone https://github.com/edward-ch-hu/argmax my-argmax && cd my-argmax && git remote rename origin upstream
+   && gh repo create my-argmax --private --source . --remote origin --push` (details in `BOOTSTRAP.md`).
 2. **Open it in your agent and say "onboard me".** `prompts/onboarding.md` walks you through prerequisites, the
    Google Ads API, picking the account, your business profile (goal, KPI, markets, report language, deal currency),
    your tracker, your CRM, your strategy, the guardrails, a first read-only run, and scheduling. Google Ads API
@@ -129,8 +137,9 @@ your existing notes.
 - **Validate by default, `--apply` to change.** Every write script prints what it would do and changes nothing
   until `--apply`. A FAIL line means nothing changed, and the agent is told never to work around one.
 - **Secrets never touch the repo**: `google-ads.yaml`, `client_secret*.json` and env vars only (all gitignored).
-- **Your data stays in your private copy.** The public template gitignores every runtime path; your copy tracks
-  them with `git add -f`, and `upstream` is set read-only.
+- **Your data stays in your private copy.** The public repo gitignores every runtime path; your copy tracks
+  them with `git add -f`, and `upstream` is set read-only. `doctor.py` fails, and every routine stops, when the
+  copy's GitHub repo is not private.
 - **Auto-apply recommendations stay off**, and the daily guard alerts if Google turns any back on.
 - You are responsible for your ad account. Start with conservative limits; onboarding defaults to them.
 
@@ -139,8 +148,9 @@ your existing notes.
 **Does it need a CRM?** No. With `crm.source: none` it judges on lead-signal conversions and says so in every
 report. With a CRM it judges on real deals, which is the point.
 
-**Will it blow my budget?** It cannot raise the total daily budget above your cap: `apply_changes.py` refuses the
-whole file. Raising the cap is a "Needs yes" decision for you.
+**Will it blow my budget?** Its changes cannot take the total daily budget above your cap: `apply_changes.py`
+refuses the whole file. With the config locked in `ARGMAX_CONFIG_YAML` the cap itself is out of the agent's reach.
+Raising the cap is a "Needs yes" decision for you.
 
 **Can it write ads?** Only from a library of claims quoted verbatim from your own website, checked against the
 live site before each test. New copy outside the library is a proposal you approve.

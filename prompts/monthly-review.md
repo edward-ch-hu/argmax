@@ -9,7 +9,8 @@ In CI: if the environment variable `ARGMAX_COMMIT` is `workflow`, skip every git
 workflow commits the runtime files after you finish. Everything else stays the same.
 
 1. Setup: install uv if missing (`pip install -q uv`), then `uv sync`, then `uv run scripts/doctor.py`. Stop and
-   report if config, credentials or API access FAIL.
+   report if config, credentials or API access FAIL. If the repo line FAILs (the repo is public), stop and print
+   only that line: write nothing to the repo or the tracker.
 2. `uv run scripts/monthly_report.py`. It writes reports/monthly/<YYYY-MM>.json and prints it. Sections: `history`
    (each month with a ready-made line and its CRM funnel), `revisions` (months changed since last month's report),
    `warnings` (wins with no deal value), `crm_stale`, `client_summary`, `rolling_90d_by_topic`, `change_audit`

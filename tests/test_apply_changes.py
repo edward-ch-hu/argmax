@@ -22,8 +22,8 @@ KEYWORDS = [
 ]
 
 
-def run(changes, history=None, firsts=None):
-    return apply_changes.evaluate(changes, CAMPS, GROUPS, KEYWORDS, history or {}, firsts or {}, TODAY)
+def run(changes, history=None, starts=None):
+    return apply_changes.evaluate(changes, CAMPS, GROUPS, KEYWORDS, history or {}, starts or {}, TODAY)
 
 
 def test_valid_file_builds_a_plan():
@@ -68,12 +68,25 @@ def test_bid_floor_and_ceiling(use):
 
 def test_stepping_window_blocks_winning_groups():
     bid = {"bids": [{"campaign": "US - Search", "ad_group": "Analytics", "cpc": 2.1}]}
-    fails, _, _ = run(bid, firsts={("US - Search", "Analytics"): date(2026, 1, 1)})
+    fails, _, _ = run(bid, starts={("US - Search", "Analytics"): date(2026, 1, 1)})
     assert any("still stepping" in f for f in fails)
-    fails, _, _ = run(bid)  # no step yet: the window has not started, the daily owns it
-    assert any("still stepping" in f for f in fails)
-    fails, _, _ = run(bid, firsts={("US - Search", "Analytics"): date(2025, 12, 20)})  # settled after 14 days
+    fails, _, _ = run(bid)  # never evaluated by the daily (no reports/daily/, no ledger): no window, the weekly may
     assert fails == []
+    fails, _, _ = run(bid, starts={("US - Search", "Analytics"): date(2025, 12, 20)})  # settled after 14 days
+    assert fails == []
+
+
+def test_a_shared_budget_counts_once_in_the_cap():
+    camps = CAMPS[:2] + [{"resource": "c/4", "name": "US - Search 2", "status": "ENABLED", "channel": "SEARCH",
+                          "budget_resource": "b/1", "budget": 80.0}]  # shares b/1 with US - Search
+    fails, _, totals = apply_changes.evaluate({"budgets": [{"campaign": "UK - Search", "daily_budget": 60}]},
+                                              camps, GROUPS, KEYWORDS, {}, {}, TODAY)
+    assert fails == [] and totals == (130.0, 140.0)
+    fails, _, _ = apply_changes.evaluate({"budgets": [{"campaign": "US - Search", "daily_budget": 90}]},
+                                         camps, GROUPS, KEYWORDS, {}, {}, TODAY)
+    assert any("shared" in f for f in fails)
+    import ads_client
+    assert ads_client.budget_total([("b/1", 80.0), ("b/1", 80.0), ("b/2", 50.0)]) == 130.0
 
 
 def test_names_must_match_once_and_not_repeat():

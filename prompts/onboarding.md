@@ -30,11 +30,13 @@ Then `uv sync` and `uv run pytest -q` (proves the engine works here). Record `pr
 
 ## b. repo
 Explain: logs, reports and decisions will hold their ad account data, so argmax runs from their own PRIVATE copy;
-the public repo is only a template. Check `git remote -v`:
-- `origin` is a private repo of theirs (GitHub: `gh repo view --json visibility -q .visibility` says PRIVATE), and
-  `upstream` points at the public template with push DISABLED: done.
-- `origin` is the public template itself: they cloned upstream directly. Follow `BOOTSTRAP.md` steps 2 to 4 to make
-  the private copy (create the private repo, repoint `origin`, add a read-only `upstream`).
+the public repo is only where engine updates come from. Check `git remote -v`:
+- `origin` is a private repo of theirs (GitHub: `gh repo view --json visibility,isFork` says PRIVATE and not a
+  fork), and `upstream` points at the public repo with push DISABLED: done.
+- `origin` is the public repo itself: they cloned upstream directly. Follow `BOOTSTRAP.md` steps 2 to 4: rename
+  `origin` to `upstream` (push DISABLED) and create the private `origin` from this folder.
+- `origin` is a GitHub fork: forks of a public repo are always public. Make a new private repo from this folder
+  (`git remote rename origin old-fork`, then `BOOTSTRAP.md` step 3 (a)), and tell them to delete the fork.
 - Local only is fine too (scheduling is then by hand or local cron). Record the choice in the note.
 
 ## c. google_ads_api
@@ -47,19 +49,28 @@ refresh token (the user's consent, stored locally). Walk through, one at a time,
 2. APIs and Services, Library, search "Google Ads API", Enable. If they will use a Google Sheet as CRM, also enable
    "Google Sheets API". Enabling gives the project Test access (test accounts only).
 3. OAuth consent screen: APIs and Services, OAuth consent screen (Google Auth Platform, Branding / Audience): user
-   type External, app name "argmax", their email; under Audience add their Google account as a test user.
+   type External, app name "argmax", their email. Then under Audience set Publishing status to "In production"
+   ("Publish app"). Say why in one line: "In Testing, Google expires the sign-in after 7 days and every routine
+   stops." Also say: the consent page in step 7 will warn "Google hasn't verified this app"; that is expected for an
+   app they made for themselves, and safe to click through (Advanced, Go to argmax). Check the status says "In
+   production" before going on.
 4. OAuth client: APIs and Services, Credentials, Create credentials, OAuth client ID, application type "Desktop
    app". Download the JSON into the repo root as `client_secret.json` (gitignored).
 5. Explorer access: open https://console.cloud.google.com/google/ads-apis/overview (same project), check the current
    level says Test, expand "Upgrade access level", check the next level says Explorer, click "Apply for access". It
    is usually approved automatically within minutes. If it is not, finish the other steps and record
    `google_ads_api pending "waiting on Explorer access"`.
-6. `cp google-ads.example.yaml google-ads.yaml`; it needs only `client_id` and `client_secret` (from the JSON) and
-   the refresh token. Offer to fill client_id and client_secret from `client_secret.json` yourself, without printing
-   them. If they already have a developer token or a manager account, see "Existing developer token or manager
-   account" below; neither is needed.
+6. `google-ads.yaml` needs only `client_id`, `client_secret` and the refresh token. Step 7 creates it from the
+   example and fills client_id and client_secret from `client_secret.json` when they are missing, so there is
+   nothing to copy by hand. If they already have a developer token or a manager account, see "Existing developer
+   token or manager account" below; neither is needed.
 7. `uv run scripts/get_refresh_token.py client_secret.json`: a browser opens; they sign in with the Google login that
-   opens their ad account and accept. It saves the refresh token into `google-ads.yaml`.
+   opens their ad account and accept (through the "unverified app" warning, step 3). It saves the refresh token into
+   `google-ads.yaml` and never prints it; never `cat` that file or echo the token. On a machine without a browser
+   (a server, a container, an SSH session) it switches to `--console`: it prints a URL to open on any device, and the
+   user pastes back the address of the page the browser lands on (a one-time code, not the token). The user should
+   run it in their own terminal (in Claude Code: `! uv run scripts/get_refresh_token.py client_secret.json`), since
+   it waits for their input.
 8. `uv run scripts/accounts.py` lists the accounts the login reaches. A CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION
    error means the project still has Test access: Explorer is pending (step 5); record pending and go on.
 9. Access level. The API does not report it, so: if `accounts.py` reads their live account, the project has at least
@@ -84,6 +95,8 @@ is reached through that manager (`accounts.py` shows "via manager"), and leave i
 ad account directly.
 
 Troubleshooting (tell the user only the one that applies):
+- invalid_grant or "Token has been expired or revoked": the consent screen is still in Testing (7-day tokens), or
+  access was removed. Publish the app (step 3), run step 7 again, and update the token in the cloud secrets.
 - AUTHORIZATION_ERROR on their live account after an upgrade: a known Google issue for projects upgraded after
   September 9, 2026. Workaround: a new Cloud project (steps 1 to 5 again: enable the API, a new Desktop OAuth client,
   apply for Explorer), then `get_refresh_token.py` with the new `client_secret.json` and update `client_id` and
@@ -103,13 +116,14 @@ opens directly gets an empty one. Write a first answers file in `.argmax/answers
 ```yaml
 account: {customer_id: "<id>", login_customer_id: "<manager id, or empty>", name: "<name>", currency: <CUR>, timezone: <Area/City>}
 api: {access_level: <the level from step c9>}
-limits: {daily_budget_cap: <current total daily budget of enabled campaigns, rounded up>}
 topics: [general]          # placeholder until step h
 conversions: {lead_signals: [<a conversion action name>]}
 ```
-(Read the current budgets and conversion action names with `uv run scripts/gaql.py` once `argmax.yaml` exists, or
-ask; step i confirms the cap.) Run `uv run scripts/init.py --answers .argmax/answers.yaml --dry-run`, show the
-result, and on a yes `uv run scripts/init.py --answers .argmax/answers.yaml` (add `--force` when rewriting). Then
+Leave every money limit (budget cap, bid floor and ceiling, negative and pause thresholds) out for now: step i sizes
+them all from the account in one pass. init prints a WARN that they keep the example's values until then; say so in
+one line. (Read conversion action names with `uv run scripts/gaql.py` once `argmax.yaml` exists, or ask.) Run
+`uv run scripts/init.py --answers .argmax/answers.yaml --dry-run`, show the result, and on a yes
+`uv run scripts/init.py --answers .argmax/answers.yaml` (add `--force` when rewriting). Then
 `uv run scripts/check_connection.py`. Keep `.argmax/answers.yaml` up to date in later steps and re-run init with
 `--force`; it is the single source the config is built from during onboarding.
 
@@ -211,9 +225,22 @@ queries are in the interview prompt), propose topics (substrings and whole words
 scripts/strategy_check.py` and `uv run scripts/doctor.py` (the "goal fit" line must be OK). Record `strategy done`.
 
 ## i. guardrails
-Confirm in plain language, defaulting to conservative values, and write them into the answers:
-- "The agent may never let the total daily budget across campaigns go above <cap> <currency>." (`limits.daily_budget_cap`; default: today's total)
-- "It may move any ad group's bid by at most <20>% a week, never below <floor> or above <ceiling>." (`limits.*`; default ceiling: 2x today's highest bid)
+One pass, now that `check_connection.py` works. Every money limit is in the account currency, so size them from the
+account instead of keeping the example's USD-sized values:
+1. `uv run scripts/init.py --answers .argmax/answers.yaml --derive --dry-run`. It reads the 30-day average Search
+   CPC, the highest current bid and today's enabled budgets, and derives: the budget cap (today's total, rounded up),
+   bid floor (0.25 x CPC) and ceiling (3 x the highest bid, or 3 x CPC), the junk-term threshold (3 x CPC over at
+   least 3 clicks), the held-term notice (5 x CPC), the pause threshold (20 x CPC), the match type threshold (5 x CPC)
+   and the STRATEGY.md evidence floor (500 x CPC). Values already in the answers win.
+2. No Search clicks in 30 days (a new account): it stops and asks for `--cpc <amount>`. Ask the owner what a click
+   costs them (Keyword Planner's top-of-page bid, or another account), then run it with `--cpc`.
+3. Read every limit back exactly as init prints it ("Limits in <CUR> ..."), in plain words, one line each, and ask
+   for a yes or a change. Copy the confirmed values into `.argmax/answers.yaml` under their keys, so later re-runs
+   keep them, then run init with `--force` (no `--derive` needed again).
+4. Put the evidence floor amount into STRATEGY.md's Evidence rules (replace the "500 x the account's average Search
+   CPC" wording with the amount and currency).
+Then confirm the rest in plain language, defaulting to conservative values, and write them into the answers:
+- "It may move any ad group's bid by at most <20>% a week." (`limits.weekly_bid_change`)
 - "For the topics that close deals, it may step bids daily by <10>% for <14> days to find the right visibility." (`stepping.*`)
 - "It may block up to <10> junk search terms a day." (`negatives.max_per_day`)
 - "It may start <1> ad copy test a week, only with claims quoted from your site." (`ad_tests.*`; off without `website.base_url`)
@@ -237,7 +264,11 @@ Read-only and validate-only, so nothing changes in the account:
 Read `docs/agents/<their agent>.md` and set up the three routines (daily scout Tuesday to Sunday, weekly review
 Monday, monthly review on the 1st, all in the account time zone) the way that agent supports: Claude Code cloud
 routines, a GitHub Actions workflow (`.github/workflows/*.example`), cron with a headless CLI, or by hand. Put the
-secrets where that doc says (cloud environment variables or GitHub Actions secrets), never in the repo. Run one
+secrets where that doc says (cloud environment variables or GitHub Actions secrets), never in the repo. Also put the
+whole `argmax.yaml` into `ARGMAX_CONFIG_YAML` there and explain why in one line: "the routine can edit files in the
+repo but not this setting, so your limits stay yours" (SETUP.md, "Guardrails lock"). Use that doc's allowlist as
+it is; never widen it to `uv *`, `git *`, `gh *` or edits outside the data folders. After any later limit change,
+update the variable too (`doctor.py` warns when the file and the variable differ). Run one
 routine once by hand to prove it. Record `scheduling done` (or `skipped "runs by hand"`).
 
 ## Done

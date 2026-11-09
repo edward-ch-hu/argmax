@@ -42,15 +42,27 @@ claude.ai/customize/connectors instead (or commit a `.mcp.json` for single-repo 
 
 ## Headless
 ```bash
+ALLOW='Read,Glob,Grep,Edit(log/**),Edit(reports/**),Edit(decisions/**),Edit(.argmax/tmp/**),Edit(STRATEGY.md),Bash(pip install uv),Bash(pip install -q uv),Bash(uv sync),Bash(uv run scripts/*),Bash(git status*),Bash(git log*),Bash(git diff*),Bash(git add -f *),Bash(git commit -m *),Bash(git pull --rebase*),Bash(git push*),Bash(git rebase --abort),Bash(git reset --hard origin/*),Bash(gh issue *),Bash(gh label *),Bash(gh pr view *),Bash(gh repo view *),Bash(gh auth status)'
 claude -p "$(cat prompts/weekly-review.md)" \
-  --permission-mode dontAsk \
-  --allowedTools "Read,Edit,Write,Glob,Grep,Bash(uv *),Bash(pip install *),Bash(git *),Bash(gh *)" \
+  --permission-mode dontAsk --allowedTools "$ALLOW" \
   --max-turns 200 --output-format text
 ```
 `-p` runs non-interactively; `--allowedTools` pre-approves exactly what the routine needs and `dontAsk` denies
 anything else instead of waiting for a prompt (https://code.claude.com/docs/en/headless,
-https://code.claude.com/docs/en/cli-reference). Avoid `--dangerously-skip-permissions`: argmax's own guardrails
-are scripts, and the allowlist keeps the agent on them.
+https://code.claude.com/docs/en/cli-reference, https://code.claude.com/docs/en/permissions). What the list does:
+- Commands: only `uv run scripts/*` (argmax's scripts, which validate by default), `uv sync`, the git steps the
+  prompts use to commit their files, and the tracker's `gh` commands. Not `uv *`: that would allow
+  `uv run python -c "..."`, a direct API call that skips every guardrail. Not `gh api`. Claude Code splits compound
+  commands (`&&`, `;`, `|`), so every part must match a rule.
+- Edits: only `log/`, `reports/`, `decisions/`, `.argmax/tmp/` and `STRATEGY.md`. `Edit(...)` rules cover every
+  tool that edits files, Write included (a `Write(path)` rule would never match; the docs say to use `Edit`), and a
+  relative path is relative to the working directory. Never add `scripts/`, `prompts/` or `argmax.yaml` for a
+  routine.
+- In GitHub Actions leave the git rules out: the workflow commits (`ARGMAX_COMMIT=workflow`).
+Avoid `--dangerously-skip-permissions`: argmax's guardrails are scripts, and the allowlist keeps the agent on them.
+Pattern rules match command text, so a path trick such as `uv run scripts/../reports/x.py` is not something they
+are documented to stop: the environment lock (`ARGMAX_CONFIG_YAML`, SETUP.md "Guardrails lock") and the workflow's
+"Guardrail files untouched" check are the backstop.
 
 ## Scheduling
 **Cloud scheduled tasks (recommended).** In a session, `/schedule` (or claude.ai/code/routines) creates a task: a
@@ -66,7 +78,12 @@ needs a claude.ai subscription login). Create three:
 Custom cron is read as UTC unless prefixed with `CRON_TZ=<Area/City>`. Then, in the task's cloud environment:
 - Environment variables: `GOOGLE_ADS_CLIENT_ID`, `GOOGLE_ADS_CLIENT_SECRET`, `GOOGLE_ADS_REFRESH_TOKEN`, and
   `GH_TOKEN` for the github-issues tracker. No developer token is needed; `GOOGLE_ADS_LOGIN_CUSTOMER_ID` only when
-  the ad account is reached through a manager account. `argmax.yaml` is committed in your private copy (or set `ARGMAX_CONFIG_YAML`).
+  the ad account is reached through a manager account. Set `ARGMAX_CONFIG_YAML` to the whole config: it locks the
+  limits where the agent cannot edit them (SETUP.md, "Guardrails lock"); a committed `argmax.yaml` alone is
+  editable by the run.
+- Cloud tasks have no `--allowedTools`: the task runs the prompt with the permissions of the cloud environment. The
+  lock above and the weekly report's Guardrails line (who last changed `argmax.yaml` and `scripts/`) are what keep
+  the limits honest there; check that line each week.
 - Network: allow `googleads.googleapis.com`, `oauth2.googleapis.com`, `sheets.googleapis.com` (Sheets CRM), your
   website (claims check), `pypi.org` and `files.pythonhosted.org` (uv sync), and `api.github.com`.
 - Pushes: tasks push to `claude/`-prefixed branches unless allowed otherwise. The prompts push to the default
@@ -79,7 +96,8 @@ Custom cron is read as UTC unless prefixed with `CRON_TZ=<Area/City>`. Then, in 
 duplicate it for the daily and monthly routines with their crons.
 
 **cron on your machine.** `crontab -e`, e.g. Monday 09:00 local time:
-`0 9 * * 1 cd /path/to/your-private-argmax && claude -p "$(cat prompts/weekly-review.md)" --permission-mode dontAsk --allowedTools "..." >> log/cron.txt 2>&1`
+`0 9 * * 1 cd /path/to/your-private-argmax && claude -p "$(cat prompts/weekly-review.md)" --permission-mode dontAsk --allowedTools "$ALLOW" >> log/cron.txt 2>&1`
+(set `ALLOW` to the list above, and `ARGMAX_CONFIG_YAML` to your config, in the crontab's environment).
 
 ## Where secrets go
 `google-ads.yaml` and `client_secret.json` locally (gitignored); environment variables in cloud tasks; GitHub

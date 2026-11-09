@@ -45,7 +45,7 @@ stepping:                    # daily_bids.py: daily bid steps for winning-topic 
   enabled: true
   step: 0.10                 # 10% per day
   weekly_limit: 0.30         # at most +/-30% from Monday's bid within a week
-  window_days: 14            # steps for 14 days from its first step, then the weekly owns the bid
+  window_days: 14            # steps for 14 days from its first daily evaluation, then the weekly owns the bid
   rank_lost_band: [0.20, 0.50]   # aim: lose 20% to 50% of impressions to ad rank
   budget_lost_max: 0.20      # hold when the campaign loses over 20% to budget (fix the budget instead)
   min_impressions: 30        # never lower a bid on fewer impressions than this
@@ -54,8 +54,9 @@ stepping:                    # daily_bids.py: daily bid steps for winning-topic 
 negatives:                   # daily_negatives.py and keyword_review.py
   max_per_day: 10
   lookback_days: 7
-  min_cost: 5.0              # a search term with this much spend and 0 conversions is a negative
-  min_clicks: 10             # or this many clicks and 0 conversions
+  min_cost: 5.0              # a search term with this much spend and 0 lead-signal conversions is a negative...
+  min_cost_clicks: 3         # ...once it also has this many clicks (one pricey click in a quiet account is not enough)
+  min_clicks: 10             # or this many clicks and 0 lead-signal conversions
   held_notify_cost: 8.0      # NOTIFY when a held winning-topic term costs this much
   junk_words: [free, download, crack, torrent, jobs, job, salary, career, tutorial, course, github, reddit]
 

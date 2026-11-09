@@ -52,6 +52,12 @@ def micros(amount, currency_code=None):
     return round(amount * 1_000_000 / unit) * unit
 
 
+def budget_total(budgets):
+    """The total daily budget from (budget resource name, amount) pairs of the enabled campaigns: a shared budget
+    counts once, however many campaigns use it. Pure."""
+    return round(sum(dict(budgets).values()), 2)
+
+
 def quoted(names):
     """A GAQL IN list of string literals: ('A', 'B')."""
     return "(" + ", ".join("'" + n.replace("\\", "\\\\").replace("'", "\\'") + "'" for n in names) + ")"
@@ -123,10 +129,21 @@ def error_text(ex):
     return "; ".join(f"{str(e.error_code).strip()} {e.message}".strip() for e in ex.failure.errors)
 
 
+def expired_token(text):
+    """True when an error text says the refresh token no longer works (Google's invalid_grant). Pure."""
+    m = str(text).upper()
+    return "INVALID_GRANT" in m or "TOKEN HAS BEEN EXPIRED OR REVOKED" in m
+
+
 def explain_api_error(text):
     """(status, message) for an API error text, with what to do. PENDING means waiting on Google (Test access only),
     FAIL means something to fix. Pure; the codes are AuthorizationError values of the Google Ads API."""
     m = text.upper()
+    if expired_token(text):
+        return "FAIL", (f"{text}. The refresh token expired or was revoked. Usual cause: the OAuth consent screen is "
+                        "still in Testing, where Google expires refresh tokens after 7 days. Set it to In production "
+                        "(Google Auth Platform, Audience, Publish app), then run get_refresh_token.py again and update "
+                        "the token wherever the routines read it (SETUP.md, Troubleshooting)")
     if any(code in m for code in ("CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION", "DEVELOPER_TOKEN_NOT_APPROVED",
                                   "ONLY_APPROVED_FOR_USE_WITH_TEST_ACCOUNTS", "TEST ACCOUNTS", "TEST_ACCOUNTS")):
         return "PENDING", ("the Cloud project has Test access (test accounts only): apply for Explorer on the Google "
@@ -143,6 +160,17 @@ def explain_api_error(text):
         return "FAIL", (f"{text}. account.login_customer_id must be the manager account the ad account sits under, or "
                         "empty when your login has direct access to the ad account")
     return "FAIL", text
+
+
+def run(main):
+    """Runs a script's main(); an expired or revoked refresh token stops it with one FAIL line and what to do, instead
+    of a traceback (the error comes from google-auth, not as a GoogleAdsException)."""
+    try:
+        main()
+    except Exception as e:  # e.g. google.auth RefreshError, or a gRPC error carrying it
+        if not expired_token(f"{e}"):
+            raise
+        raise SystemExit(f"FAIL   {explain_api_error(f'{type(e).__name__}: {e}')[1]}") from None
 
 
 def sheet_values(spreadsheet_id, cell_range):

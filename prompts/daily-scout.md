@@ -8,7 +8,8 @@ workflow commits the runtime files after you finish. Everything else stays the s
 1. Setup: install uv if missing (`pip install -q uv`), then `uv sync`. Google Ads credentials are in GOOGLE_ADS_*
    environment variables (or google-ads.yaml); the config is `argmax.yaml` (or ARGMAX_CONFIG / ARGMAX_CONFIG_YAML).
    Run `uv run scripts/doctor.py --offline`. If config or STRATEGY.md is missing or onboarding is not complete,
-   stop: print that setup is incomplete and, if the tracker works, comment that on the newest weekly report.
+   stop: print that setup is incomplete and, if the tracker works, comment that on the newest weekly report. If the
+   repo line FAILs (the repo is public), stop and print only that line: write nothing to the repo or the tracker.
 2. `uv run scripts/daily_scout.py`. It changes nothing in Google Ads. It adds yesterday to
    reports/daily/week-<Monday>.json, saves the day's clicks for ref code matching (when ref codes are on),
    backfills a missed earlier day (MISSED), and prints NOTIFY lines (ALERT, NEWS, WIN, REF, REF_GAP, MISSED) or QUIET.
@@ -23,7 +24,7 @@ workflow commits the runtime files after you finish. Everything else stays the s
 5. Commit only the daily files and the ledger (they are gitignored on purpose, so add them by path):
    `git add -f reports/daily/ reports/changes.jsonl && git commit -m "Daily scout <date>"`, then
    `git pull --rebase` and `git push`. If the rebase conflicts (the weekly pushed first): copy this run's lines of
-   reports/changes.jsonl (routine "daily") to a temp file, `git rebase --abort`, `git reset --hard origin/<branch>`,
+   reports/changes.jsonl (routine "daily") to `.argmax/tmp/`, `git rebase --abort`, `git reset --hard origin/<branch>`,
    append those lines back, run steps 2 to 4 again (step 3 will not step twice; step 4 will not add a negative
    twice and rebuilds the day's "added" list from the ledger), commit and push. If the push is still refused,
    mention it in step 6.

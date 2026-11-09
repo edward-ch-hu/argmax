@@ -1,10 +1,11 @@
 """Read-only snapshot of account performance, printed as JSON sections.
 
-Usage: uv run scripts/performance_snapshot.py [DAYS]   (default 30, ending yesterday)
+Usage: uv run scripts/performance_snapshot.py [DAYS] [--out FILE]   (default 30, ending yesterday; --out writes FILE)
 """
 import json
 import sys
 from datetime import timedelta
+from pathlib import Path
 
 import ads_client
 from google.protobuf.json_format import MessageToDict
@@ -48,7 +49,10 @@ def queries(where):
 
 
 def main():
-    days = int(sys.argv[1]) if len(sys.argv) > 1 else 30
+    args = sys.argv[1:]
+    target = args[args.index("--out") + 1] if "--out" in args and args.index("--out") + 1 < len(args) else None
+    numbers = [a for a in args if a.isdigit()]
+    days = int(numbers[0]) if numbers else 30
     end = ads_client.today() - timedelta(days=1)
     start = end - timedelta(days=days - 1)
     client = ads_client.load()
@@ -56,7 +60,13 @@ def main():
     out = {"range": [str(start), str(end)], "currency": ads_client.currency()}
     for name, query in queries(f"segments.date BETWEEN '{start}' AND '{end}'").items():
         out[name] = [MessageToDict(type(r).pb(r), preserving_proto_field_name=True) for r in ads_client.rows(service, query)]
-    print(json.dumps(out, indent=1))
+    text = json.dumps(out, indent=1)
+    if target:  # --out writes the file itself, so headless allowlists need no shell redirect
+        Path(target).parent.mkdir(parents=True, exist_ok=True)
+        Path(target).write_text(text)
+        print(f"Wrote {target}")
+    else:
+        print(text)
 
 
 if __name__ == "__main__":

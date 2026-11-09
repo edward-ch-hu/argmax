@@ -13,15 +13,7 @@ jobs:
   weekly:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    env:
-      GOOGLE_ADS_CLIENT_ID: ${{ secrets.GOOGLE_ADS_CLIENT_ID }}
-      GOOGLE_ADS_CLIENT_SECRET: ${{ secrets.GOOGLE_ADS_CLIENT_SECRET }}
-      GOOGLE_ADS_REFRESH_TOKEN: ${{ secrets.GOOGLE_ADS_REFRESH_TOKEN }}
-      GOOGLE_ADS_LOGIN_CUSTOMER_ID: ${{ secrets.GOOGLE_ADS_LOGIN_CUSTOMER_ID }}   # optional: only via a manager account
-      GOOGLE_ADS_USE_PROTO_PLUS: "True"
-      ARGMAX_CONFIG_YAML: ${{ secrets.ARGMAX_CONFIG_YAML }}
-      ARGMAX_COMMIT: workflow
-      GH_TOKEN: ${{ github.token }}
+    # Secrets go only to the step that runs the agent, not job-wide.
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -33,14 +25,40 @@ jobs:
       - name: Weekly review
         env:
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          GOOGLE_ADS_CLIENT_ID: ${{ secrets.GOOGLE_ADS_CLIENT_ID }}
+          GOOGLE_ADS_CLIENT_SECRET: ${{ secrets.GOOGLE_ADS_CLIENT_SECRET }}
+          GOOGLE_ADS_REFRESH_TOKEN: ${{ secrets.GOOGLE_ADS_REFRESH_TOKEN }}
+          GOOGLE_ADS_LOGIN_CUSTOMER_ID: ${{ secrets.GOOGLE_ADS_LOGIN_CUSTOMER_ID }}   # optional: only via a manager account
+          GOOGLE_ADS_USE_PROTO_PLUS: "True"
+          ARGMAX_CONFIG_YAML: ${{ secrets.ARGMAX_CONFIG_YAML }}   # the guardrails lock: limits the agent cannot edit
+          ARGMAX_COMMIT: workflow
+          GH_TOKEN: ${{ github.token }}
+        # Commands limited to argmax's scripts and the tracker's gh commands; no git (the workflow commits). Path-scoped
+        # Edit/Write rules are not in xAI's CLI docs, so edits are checked by the next step instead.
         run: |
           grok --no-auto-update -p "$(cat prompts/weekly-review.md)" \
             --permission-mode dontAsk \
             --allow 'Read' --allow 'Edit' --allow 'Write' \
-            --allow 'Bash(uv *)' --allow 'Bash(git *)' --allow 'Bash(gh *)' \
+            --allow 'Bash(uv sync)' --allow 'Bash(uv run scripts/*)' \
+            --allow 'Bash(gh issue *)' --allow 'Bash(gh label *)' --allow 'Bash(gh pr view *)' \
+            --allow 'Bash(gh repo view *)' --allow 'Bash(gh auth status)' \
             --max-turns 200 --output-format plain
-      - name: Commit runtime files
+      - name: Guardrail files untouched
+        id: guard
         if: always()
+        # The agent may write only log/, reports/, decisions/, .argmax/tmp/ and STRATEGY.md. Fails the run (and skips
+        # the commit) when it changed the engine or the config, or left code in a data folder.
+        run: |
+          changed=$(git status --porcelain --ignored --untracked-files=all -- argmax.yaml scripts prompts trackers \
+            AGENTS.md CLAUDE.md pyproject.toml .github | grep -v '__pycache__' || true)
+          code=$(find log reports decisions -type f \( -name '*.py' -o -name '*.sh' \) 2>/dev/null || true)
+          if [ -n "$changed$code" ]; then
+            echo "::error::the agent changed guardrail files or left code in a data folder; nothing is committed"
+            printf '%s\n' "$changed" "$code"
+            exit 1
+          fi
+      - name: Commit runtime files
+        if: ${{ !cancelled() && steps.guard.outcome == 'success' }}
         run: |
           git config user.name "argmax"
           git config user.email "argmax@users.noreply.github.com"

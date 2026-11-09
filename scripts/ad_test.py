@@ -212,10 +212,15 @@ def create(client, ga, spec, library, check, tests, today, apply):
             getattr(ad.ad.responsive_search_ad, kind).append(text)
     label = (f"new RSA   {g['campaign']} / {g['ad_group']}: {len(spec['headlines'])} headlines, "
              f"{len(spec['descriptions'])} descriptions -> {spec['final_url']} (control ad {g['rsas'][0]})")
+    planned = ledger.entry("ad", f"{g['campaign']} / {g['ad_group']} / ad (new)", "status", None, "ENABLED",
+                           f"ad test: {spec['hypothesis']}", g["topic"], f"variant CTR vs control ad {g['rsas'][0]}")
+    planned = ledger.begin([planned]) if apply else [planned]
     try:
         response = client.get_service("AdGroupAdService").mutate_ad_group_ads(
             request={"customer_id": ads_client.customer_id(), "operations": [op], "validate_only": not apply})
     except GoogleAdsException as ex:
+        if apply:
+            ledger.finish(planned, "failed")
         for e in ex.failure.errors:
             print(f"FAIL   {label}  <- {e.message}" + (f" ({e.trigger.string_value})" if e.trigger.string_value else ""))
         sys.exit("Nothing changed.")
@@ -229,9 +234,7 @@ def create(client, ga, spec, library, check, tests, today, apply):
                   "locale": g["locale"], "topic": g["topic"], "hypothesis": spec["hypothesis"], "started": str(today),
                   "control_ad_id": g["rsas"][0], "variant_ad_id": variant, "headlines": spec["headlines"],
                   "descriptions": spec["descriptions"], "final_url": spec["final_url"], "first_impression": None})
-    ledger.append([ledger.entry("ad", f"{g['campaign']} / {g['ad_group']} / ad {variant}", "status", None, "ENABLED",
-                                f"ad test: {spec['hypothesis']}", g["topic"],
-                                f"variant CTR vs control ad {g['rsas'][0]}")])
+    ledger.finish([{**planned[0], "entity": f"{g['campaign']} / {g['ad_group']} / ad {variant}"}])
     print(f"       test {tests[-1]['id']}: variant ad {variant}")
     return tests
 
@@ -412,12 +415,11 @@ def evaluate(client, ga, tests, check, apply):
 
     if ops:
         try:
-            client.get_service("AdGroupAdService").mutate_ad_group_ads(
-                request={"customer_id": ads_client.customer_id(), "operations": ops, "validate_only": not apply})
+            with ledger.pending(changes, apply):
+                client.get_service("AdGroupAdService").mutate_ad_group_ads(
+                    request={"customer_id": ads_client.customer_id(), "operations": ops, "validate_only": not apply})
         except GoogleAdsException as ex:
             sys.exit("FAIL   " + "; ".join(e.message for e in ex.failure.errors) + "\nNothing changed.")
-        if apply:
-            ledger.append(changes)
     print(json.dumps(report, ensure_ascii=False, indent=1))
     for e in report:
         print(f"TEST   {e['id']} {e['campaign']} / {e['ad_group']}: {e['action']}"
@@ -449,13 +451,13 @@ def reverse(client, ga, tests, test_id, apply):
                                     "the ad copy before the test serves again"))
         print(f"{'DONE ' if apply else 'VALID'}  {status:<7} {t['campaign']} / {t['ad_group']} / ad {ad_id}")
     try:
-        client.get_service("AdGroupAdService").mutate_ad_group_ads(
-            request={"customer_id": ads_client.customer_id(), "operations": ops, "validate_only": not apply})
+        with ledger.pending(changes, apply):
+            client.get_service("AdGroupAdService").mutate_ad_group_ads(
+                request={"customer_id": ads_client.customer_id(), "operations": ops, "validate_only": not apply})
     except GoogleAdsException as ex:
         sys.exit("FAIL   " + "; ".join(e.message for e in ex.failure.errors) + "\nNothing changed.")
     if not apply:
         return None
-    ledger.append(changes)
     t.update(status="reversed", reversed=str(ads_client.today()))
     return tests
 

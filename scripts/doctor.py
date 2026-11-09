@@ -1,6 +1,9 @@
 """What is set up and what is missing: one OK / FAIL / PENDING line per item. Changes nothing anywhere.
 
-Items: config (argmax.yaml), business profile, strategy (STRATEGY.md) and whether business.goal fits it, credentials (google-ads.yaml or GOOGLE_ADS_* env vars, never
+Items: config (argmax.yaml), guardrails (when argmax.yaml and scripts/ last changed and by whom, and whether
+ARGMAX_CONFIG_YAML locks the config; the weekly report copies this line), repo (with gh, also under --offline: the
+GitHub origin and the github-issues repo must be PRIVATE, or every routine stops: logs hold account data and anyone
+could approve a decision on a public repo; WARN when gh cannot tell), business profile, strategy (STRATEGY.md) and whether business.goal fits it, credentials (google-ads.yaml or GOOGLE_ADS_* env vars, never
 printed; no developer token needed), API access (skipped with --offline), API quota (api.access_level against the
 estimated operations per day), tracker, CRM (header row and status values only), ad library, onboarding progress.
 PENDING means waiting on something (Explorer access approval, an onboarding step); WARN
@@ -9,7 +12,9 @@ anything FAILs.
 
 Usage: uv run scripts/doctor.py [--offline]
 """
+import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -111,6 +116,106 @@ def business_status(cfg):
                   f"markets {markets}; reports in {b.report_language}; deals in {deals}")
 
 
+GUARDED = ("argmax.yaml", "scripts/")
+UPSTREAM = "edward-ch-hu/argmax"
+
+
+def git(*args):
+    """stdout of a git command, or None when git or the repo is not there."""
+    try:
+        r = subprocess.run(["git", *args], capture_output=True, text=True, timeout=20)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return r.stdout.rstrip("\n") if r.returncode == 0 else None
+
+
+def guardrails_status(last_change, dirty, source, differs):
+    """(status, message): when argmax.yaml and scripts/ last changed and by whom, and whether the run environment
+    locks the config. last_change: "<date> <short commit> <author>" or None; dirty: uncommitted paths. Pure.
+    The weekly report copies the message into its header, so drift in the guardrails is visible."""
+    if last_change:
+        date_, commit, author = (last_change.split(" ", 2) + ["", ""])[:3]
+        when = f"argmax.yaml and scripts/ last changed {date_} {commit} by {author}".strip()
+    else:
+        when = "argmax.yaml and scripts/ last changed: unknown (not a git checkout, or never committed)"
+    if source is None:
+        lock = "no config yet"
+    elif source == "ARGMAX_CONFIG_YAML":
+        lock = "config locked by ARGMAX_CONFIG_YAML (argmax.yaml is advisory" + (
+            ", and differs from it)" if differs else ")")
+    else:
+        lock = (f"config from {source}, not locked: set ARGMAX_CONFIG_YAML in the run environment so the agent cannot "
+                "change limits (SETUP.md, Guardrails lock)")
+    if dirty:
+        return "WARN", f"uncommitted changes in {', '.join(dirty)}: guardrails edited outside git; {when}; {lock}"
+    return "OK", f"{when}; {lock}"
+
+
+def guardrails_check(env):
+    last = (git("log", "-1", "--format=%cs %h %an", "--", *GUARDED) or "").strip() or None
+    status = git("status", "--porcelain", "--", *GUARDED)
+    dirty = sorted({line[3:] for line in (status or "").splitlines() if line.strip()})
+    try:
+        _, source = config.source(env)
+    except config.ConfigError:
+        source = None
+    differs = False
+    if source == "ARGMAX_CONFIG_YAML" and config.DEFAULT_PATH.exists():
+        try:
+            differs = yaml.safe_load(env["ARGMAX_CONFIG_YAML"]) != yaml.safe_load(config.DEFAULT_PATH.read_text())
+        except yaml.YAMLError:
+            differs = True
+    return guardrails_status(last, dirty, source, differs)
+
+
+def github_repo(url):
+    """owner/name for a github.com remote URL (https or ssh), else None. Pure."""
+    m = re.match(r"^(?:https://(?:[^@/]+@)?github\.com/|git@github\.com:|ssh://git@github\.com/)([^/]+)/([^/]+?)(?:\.git)?/?$",
+                 (url or "").strip())
+    return f"{m[1]}/{m[2]}" if m else None
+
+
+def visibility_status(repo, view):
+    """(status, message) for a GitHub repo that holds argmax's logs or decisions. view: the parsed output of
+    `gh repo view <repo> --json visibility,isFork`, or None when gh could not answer. Pure."""
+    why = ("its logs and reports hold your account's data, and on a public repo anyone could comment \"yes\" on a "
+           "decision")
+    if view is None:
+        return "WARN", f"{repo}: could not read its visibility with gh (gh missing or not logged in); it must be private: {why}"
+    visibility = str(view.get("visibility", "")).upper()
+    if visibility != "PRIVATE":
+        if repo.lower() == UPSTREAM:
+            return "FAIL", (f"{repo} is the public upstream: run argmax from your own private copy (BOOTSTRAP.md), "
+                            f"because {why}")
+        fork = " It is a fork: GitHub forks of a public repo are always public, so make a new private repo instead " \
+               "(BOOTSTRAP.md)." if view.get("isFork") else " Make it private (Settings, General, Danger Zone)."
+        return "FAIL", f"{repo} is {visibility.lower() or 'not private'}: routines stop until it is private: {why}.{fork}"
+    return "OK", f"{repo} is private"
+
+
+def repo_visibility(cfg, which=shutil.which):
+    """[(status, message)] for the GitHub repos argmax writes to: the origin remote and tracker.github.repo."""
+    repos = []
+    origin = github_repo(git("remote", "get-url", "origin"))
+    if origin:
+        repos.append(origin)
+    tracked = ((cfg.tracker.github or {}).get("repo") or "") if cfg and cfg.tracker.backend == "github-issues" else ""
+    if tracked and tracked not in repos:
+        repos.append(tracked)
+    out = []
+    for repo in repos:
+        view = None
+        if which("gh"):
+            r = subprocess.run(["gh", "repo", "view", repo, "--json", "visibility,isFork"], capture_output=True, text=True)
+            if r.returncode == 0:
+                try:
+                    view = json.loads(r.stdout)
+                except ValueError:
+                    view = None
+        out.append(visibility_status(repo, view))
+    return out
+
+
 def tracker_status(cfg, which=shutil.which):
     """(status, message) for the tracker setting. The MCP backends are tested by the agent, not here."""
     backend = cfg.tracker.backend
@@ -166,6 +271,11 @@ def check(offline=False, env=None):
         q = quota_status(cfg)
         out.append((q[0], "api quota", q[1]))
 
+    g = guardrails_check(env)
+    out.append((g[0], "guardrails", g[1]))
+    for status, message in repo_visibility(cfg):  # also with --offline: the daily runs that way and must stop too
+        out.append((status, "repo", message))
+
     if offline:
         out.append(("PENDING", "api", "skipped (--offline)"))
     elif cred[0] != "OK" or cfg is None:
@@ -215,8 +325,9 @@ def api_check(cfg):
         return status, "api", message
     except SystemExit as e:  # missing credentials
         return "FAIL", "api", str(e)
-    except Exception as e:  # e.g. a bad refresh token
-        return "FAIL", "api", f"{type(e).__name__}: {e}"
+    except Exception as e:  # e.g. an expired refresh token (RefreshError: invalid_grant)
+        status, message = api_error_status(f"{type(e).__name__}: {e}")
+        return status, "api", message
     c = rows[0].customer
     notes = [f"{what} in argmax.yaml is {mine}, the account says {live}"
              for what, live, mine in (("currency", c.currency_code, cfg.account.currency),

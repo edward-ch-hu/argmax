@@ -22,8 +22,9 @@ then move spend there at the same total budget.
 - Noise, never judged on: `conversions.noise_signals` (chat opens, button clicks, page-view goals).
 
 ## Evidence rules
-- No topic or campaign is defunded on outcome data below a floor: at least 1,500 (account currency) spent over at
-  least 60 days with 0 CRM or ref-matched leads. Below the floor, cut waste on spend-side data only (off-intent
+- No topic or campaign is defunded on outcome data below a floor: spend of at least 500 x the account's average
+  Search CPC (onboarding writes the amount here, from `init.py --derive`; about 1,500 at a CPC of 3) over at least 60
+  days with 0 CRM or ref-matched leads. Below the floor, cut waste on spend-side data only (off-intent
   search terms, CPC, impressions lost to budget).
 - Topics are judged on the rolling 90-day table (`scripts/topic_table.py`), never month against month.
 - 0 leads in one week is not evidence. At a few leads a week, before/after counts around one change are a hint.
