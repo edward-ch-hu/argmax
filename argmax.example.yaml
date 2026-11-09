@@ -56,6 +56,35 @@ stepping:                    # daily_bids.py: daily bid steps for winning-topic 
   min_impressions: 30        # never lower a bid on fewer impressions than this
   new_groups: {}             # "Ad group name": "YYYY-MM-DD" skips the weekly limit until that date
 
+market_price:                # Google's first-position CPC estimate for a group's keywords, weighted by their impressions
+                             # over 30 days (market_price.py). Only ever a ceiling, and never over safety_limit
+  safety_limit: 15.00        # the hard cap over any estimate; needed by a market ceiling (experiments or groups)
+  fallback: null             # the ceiling when Google has no estimate; null = limits.bid_ceiling
+  groups: []                 # winning groups whose daily steps go up to the market price instead of
+                             # limits.bid_ceiling, e.g. [{campaign: "US - Search", ad_group: "Analytics"}]
+
+# Experiments: time-boxed bid tests run by daily_bids.py and judged by experiments.py (README, "Experiments"). One
+# starts only after the owner's "yes" on a "Needs yes" decision, and the owner adds it here (or to
+# ARGMAX_CONFIG_YAML): the routines never edit this file. Example (remove "[]" and the "#" to use it):
+experiments: []
+#  - id: analytics-ceiling        # short and unique; the ledger and the decisions use it
+#    type: ceiling_test           # how high can the bid usefully go?
+#    campaign: "US - Search"      # exact names
+#    ad_group: "Analytics"
+#    start: 2026-03-02            # the first daily run that steps it
+#    end: 2026-03-23              # the last one; the weekly judges the kill rule from this date
+#    step: 0.20                   # 20% a day...
+#    weekly_limit: 0.60           # ...and at most +/-60% from the Monday bid
+#    stop_rank_lost: 0.10         # raised while it loses over 10% to rank; never lowered for being visible
+#    ceiling: market              # market (market_price, under its safety_limit) or fixed (with ceiling_amount: 8.00)
+#    pre_test: {bid: 2.00, budget: 60}   # bid and campaign budget before the test: the kill rule reverts to them
+#    kill: {min_leads: 1, max_cost_per_lead: 400}   # judged on the end date: fewer new leads, or a higher cost
+#                                 # per lead, reverts to pre_test; otherwise it passed and the weekly owns the bid
+#    mid_check: {min_click_rise: 0.15, max_cpc_rise: 0.30, window_days: 7, min_days: 3}   # clicks a day up under
+#                                 # 15% while CPC up over 30% between the last two bid levels: end early, bid to the knee
+#    reserve: {base_cap: 120}     # optional: limits.daily_budget_cap was 120 before the test; until the end date the
+#                                 # other campaigns together stay at or under 120 - pre_test.budget (or others_max: <n>)
+
 negatives:                   # daily_negatives.py and keyword_review.py
   max_per_day: 10
   lookback_days: 7

@@ -6,7 +6,8 @@ GitHub origin and the github-issues repo must be PRIVATE, or every routine stops
 could approve a decision on a public repo; WARN when gh cannot tell), business profile, strategy (STRATEGY.md), whether business.goal fits it and whether its bidding end state agrees
 with business.bidding_end_state, credentials (google-ads.yaml or GOOGLE_ADS_* env vars, never
 printed; no developer token needed), API access (skipped with --offline), API quota (api.access_level against the
-estimated operations per day), tracker, CRM (header row and status values only), ad library, onboarding progress.
+estimated operations per day), tracker, CRM (header row and status values only), ad library, experiments (when the
+config has any: each one's phase), onboarding progress.
 PENDING means waiting on something (Explorer access approval, an onboarding step); WARN
 means it works but looks wrong (e.g. goal roas with a lead-gen strategy); FAIL means something is wrong. Exit 1 when
 anything FAILs.
@@ -310,6 +311,12 @@ def check(offline=False, env=None):
             out.append(("OK", "ad library", f"{lib} present") if lib.exists() else
                        ("PENDING", "ad library", f"no {lib}: ad tests wait until it is filled from your site "
                         "(docs/ad_library.example.json)"))
+
+    if cfg and cfg.experiments:
+        import experiments
+        exp_state, today = experiments.load_state(), ads_client.today()
+        out.append(("OK", "experiments", "; ".join(f"{e['id']} {experiments.phase(e, today, exp_state)} "
+                                                   f"({e['start']} to {e['end']})" for e in cfg.experiments)))
 
     import onboarding
     state = onboarding.load()

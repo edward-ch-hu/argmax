@@ -36,7 +36,8 @@ lead signals, more cautiously.
 
 ## The routines (each prompt holds the steps, this file holds the rules)
 - **Daily scout** (`prompts/daily-scout.md`, Tuesday to Sunday). Read-only except two automatic steps:
-  `daily_bids.py --apply` steps winning-topic Search bids during their stepping window, and
+  `daily_bids.py --apply` steps winning-topic Search bids during their stepping window (and groups in a running
+  experiment by the experiment's rules), and
   `daily_negatives.py --apply` blocks junk search terms as exact campaign negatives. It records yesterday in
   `reports/daily/week-<Monday>.json`, backfills a missed day, and comments on the newest weekly report only for
   NOTIFY lines. A BUDGET line means a winning group cannot grow because its campaign is budget-capped: the weekly
@@ -69,7 +70,13 @@ Apply on your own, then report:
   its bid by hand, change the config instead. After it the group is "settled" and the weekly makes one move per week
   toward `stepping.rank_lost_band` on the last 7 days, via `apply_changes.py`.
 - Budget shifts between campaigns, as long as the total daily budget across enabled campaigns stays at or under
-  the configured budget cap.
+  the configured budget cap, and, while an experiment's reserve holds, the other campaigns stay under its
+  `reserve.others_max`.
+- Experiments (config `experiments:`, `scripts/experiments.py`): run the ones in the config, never touch their
+  bids by hand (apply_changes.py refuses), and each weekly run `experiments.py evaluate`. When its mid-test check
+  or the kill rule ends one, apply it (`evaluate --apply`) and report it as a "Done, reply reverse to undo:
+  experiment <id> ended by its <rule>" decision; a "reverse" reply is undone with `experiments.py reverse <id>
+  --apply`. A test that passed needs no decision: say so in the log.
 - Pausing and enabling keywords and ad groups; pausing campaigns whose phase exit check failed (STRATEGY.md).
   Cutting a topic or campaign on outcome data (leads, wins) only above STRATEGY.md's Evidence rules floor.
 - Moving a campaign to the next phase when STRATEGY.md's criteria are met.
@@ -97,6 +104,11 @@ Never, without a human "yes" on a decision:
   its test). Propose the full copy (only claims the site makes) and wait for a "yes".
 - Set the first topic spend targets, or move any topic by more than 10 percentage points (or shares that do not
   sum to 100).
+- Start an experiment, extend one (a later end date, a higher ceiling or step) or end one early outside its own
+  rules. Propose it as "Needs yes: start experiment <id>: <group>, <dates>" with the full config entry in the body
+  (why: rank-lost at the ceiling, the lead numbers; the kill rule and, when the cap must rise for it, the reserve).
+  On a yes the owner adds the entry to the config (or `ARGMAX_CONFIG_YAML`); you never edit it. Ending early on a
+  yes: `experiments.py end <id> [--bid <amount>] --apply`.
 
 ## How changes are made, so they are checked and reviewable later
 - Bids, budgets and status (campaign, ad group, keyword): `reports/changes-<date>.json`, applied with
@@ -104,6 +116,8 @@ Never, without a human "yes" on a decision:
   (budget cap, weekly bid change, bid floor and ceiling, winning groups still stepping, Performance Max, unclear
   names). Never work around a FAIL.
 - Keywords: the keyword review JSON (or the match type review JSON), applied with `apply_keyword_review.py`.
+- Experiments: `experiments.py evaluate` (validate) then `--apply` ends one by its own rules; `end` and `reverse`
+  the same way. Their ledger lines carry the experiment's id.
 - Ad copy: `reports/ad-test-<date>.json`, started with `ad_test.py create <json>` (validate) then `--apply`;
   `ad_test.py evaluate --apply` concludes tests.
 - Anything else (rare): a script under `scripts/`, validate first, then `--apply`.
@@ -223,6 +237,10 @@ Never, without a human "yes" on a decision:
 - Before calling a traffic change on a Search campaign a "collapse", split it by `segments.ad_network_type`
   (`performance_snapshot.py` section `campaign_networks`): Display ending looks like a collapse in totals.
 - A ref code found on two clicks is "ambiguous": report it, never guess.
+- A market price (Google's first-position CPC estimate, `market_price.py`) is only ever a ceiling and never goes
+  over `market_price.safety_limit`. When Google refuses the estimate, daily_bids.py prints a NOTE and uses
+  `market_price.fallback` (default `limits.bid_ceiling`): expected, not a failure. The daily records the price it saw
+  as `market_price` in the day's bids section.
 - Google Ads API access needs no developer token or manager account (sunset 2026-09-09); access levels belong to
   the Cloud project that owns the OAuth client (`api.access_level`). Explorer allows 2,880 operations a day on live
   accounts (argmax needs well under 400) and no Keyword Planner: keyword_review.py then skips ideas with a NOTE,

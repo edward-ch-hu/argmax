@@ -31,7 +31,8 @@ fork), because its logs and reports hold your account's data and its decisions a
 ## What it does
 
 - **Daily scout** checks the account for drift (auto-apply sneaking back on, Display leaking into Search, budget
-  over cap), records the day, steps winning-topic bids toward a visibility sweet spot, and blocks junk search terms.
+  over cap), records the day, steps winning-topic bids toward a visibility sweet spot (and experiment groups by
+  their own rules), and blocks junk search terms.
 - **Weekly review** reads the week, writes 3 to 5 numbered observations, reviews keywords and match types, moves
   bids and budgets toward the topics that close deals, runs ad copy A/B tests, and files a report.
 - **Monthly review** recomputes the whole history from scratch (spend, new customers, first-month ROI, funnel per
@@ -52,6 +53,9 @@ the lock and the allowlist below make sure the agent cannot edit the script or t
 | Weekly bid change limit (from Monday's bid) | `apply_changes.py` | refused |
 | Bid floor and ceiling | `apply_changes.py`, `daily_bids.py` | refused / clamped |
 | Daily stepping window (winning groups only) | `daily_bids.py` | hand edits refused while stepping |
+| Experiments: own step and weekly limits, ceiling, end date, kill rule | `daily_bids.py`, `experiments.py`, `apply_changes.py` | hand bids refused; ended and reverted by rule |
+| Market price ceilings never above `market_price.safety_limit` | `market_price.py` | clamped |
+| Budget reserve for an experiment's campaign | `apply_changes.py`, `daily_guard.py` | refused / ALERT |
 | Max junk negatives per day, never winning-topic terms | `daily_negatives.py` | held for the weekly |
 | Protection window: a term with a lead signal in the last 30 days is never blocked by spend or clicks | `keyword_review.py`, `daily_negatives.py` | skipped with the reason |
 | Ad copy only from a claims library quoted from your site | `claims_check.py`, `ad_test.py` | test refused or paused |
@@ -66,6 +70,30 @@ then `argmax.yaml` in the repo is an advisory copy, and only you can change a li
 `uv run scripts/*` and edits to `log/`, `reports/`, `decisions/` and `STRATEGY.md`, not `scripts/` or
 `argmax.yaml`, and `doctor.py` and every weekly report show when `argmax.yaml` and `scripts/` last changed and by
 whom. The rules also tell the agent never to change limits without your "yes"; the lock is what enforces it.
+
+## Experiments
+
+Sometimes the question is not "which way" but "how far": a winning ad group loses most of its impressions to ad rank
+at its bid ceiling, and nobody knows where extra bid stops buying clicks. An experiment answers that inside the
+guardrails. It is an entry under `experiments:` in the config (`argmax.example.yaml` has a commented one), added by
+you after a "Needs yes" decision, never by a routine:
+
+- **Type `ceiling_test`**: from its start to its end date `daily_bids.py` steps the group by the experiment's own
+  rules (e.g. 20% a day, +/-60% a week), raising it while it loses over `stop_rank_lost` to rank and never lowering
+  it for being visible, up to its ceiling: a fixed amount, or the **market price** (Google's first-position CPC
+  estimate for its keywords, weighted by impressions), never above `market_price.safety_limit`.
+- **Hands off**: while an experiment holds a group, `apply_changes.py` refuses hand bids on it. Every step is a
+  ledger line with the experiment's id.
+- **Budget reserve** (optional): when you raise the cap for a test, the room above the old cap belongs to the
+  experiment's campaign until the end date; the other campaigns together stay under the old cap minus its pre-test
+  budget (`apply_changes.py` refuses, `daily_guard.py` alerts).
+- **Mid-test check**: each weekly, `experiments.py evaluate` prints bid levels against clicks, CPC and leads. When
+  the last bid level bought almost no extra clicks (under 15% more) at a much higher CPC (over 30%), the test ends
+  early and the bid goes back to the knee.
+- **Kill rule**, judged on the end date: no new leads (or a cost per lead over your limit) reverts the bid and the
+  budget to their pre-test values; otherwise the test passed and the weekly owns the bid, with the same ceiling.
+- Ending by the mid-test check or the kill rule is applied, then reported as "Done, reply reverse to undo"
+  (`experiments.py reverse <id>`). Starting, extending or ending one early by hand needs your "yes".
 
 ## Architecture
 
@@ -92,7 +120,7 @@ flowchart LR
 
 | Routine | When | Changes the account? | Prompt |
 |---|---|---|---|
-| Daily scout | Tue to Sun, morning | bid steps on winning groups, junk negatives | `prompts/daily-scout.md` |
+| Daily scout | Tue to Sun, morning | bid steps on winning and experiment groups, junk negatives | `prompts/daily-scout.md` |
 | Weekly review | Monday, morning | yes, inside Autonomy and the limits | `prompts/weekly-review.md` |
 | Monthly review | the 1st | never | `prompts/monthly-review.md` |
 

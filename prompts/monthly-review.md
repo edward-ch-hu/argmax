@@ -46,6 +46,10 @@ workflow commits the runtime files after you finish. Everything else stays the s
      (never month vs month, noise never).
    - Changes made this month: summarised from this month's weekly logs.
    - Did past changes work?: from `change_audit`, with its note that before/after counts around one change are noisy.
+   - Experiments (when the config has any): each one running, judged or ended this month (reports/experiments.json
+     and reports/experiments-<date>.json, ledger lines with its id): the group, the dates, the bid levels against
+     clicks, CPC and leads, the verdict (mid-test check, kill rule, passed, ended or reversed by the owner) and what
+     it says about the group's ceiling. Put it under "Did past changes work?".
    - Ad tests: each test concluded or failed this month (group, hypothesis, days, impressions, CTR and lead signals
      per arm, z, the winner or why it failed), what the winning copy says that the loser did not, the tests still
      running. "None this month" when there were none.

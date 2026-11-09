@@ -73,6 +73,18 @@ workflow commits the runtime files after you finish. Everything else stays the s
    - Settled winning groups (their daily bids section says "settled"): read the last 7 days of rank-lost impression
      share and make one move toward `stepping.rank_lost_band`: raise when over it, lower when under it with enough
      impressions, hold when the campaign lost over `stepping.budget_lost_max` to budget (fix the budget instead).
+     A group with a market-price ceiling (an experiment that was not killed, or `market_price.groups`) may go up to
+     the `market_price` in its daily bids rows; apply_changes.py checks it.
+   - Experiments (skip when `experiments` is empty): reverse first: for an open "Done, reply reverse to undo:
+     experiment <id> ..." decision with a "reverse" reply, run `uv run scripts/experiments.py reverse <id>`
+     (validate) and `--apply`, then resolve it; resolve the ones past their due date with no reply as kept. Then
+     `uv run scripts/experiments.py evaluate` (validate). Put its LEVEL table (bid level vs clicks and spend a day,
+     CPC, lead signals and leads) and its MID or KILL verdict in the log (Observations and Changes). When it would
+     end one (mid-test check: back to the knee; kill rule: back to the pre-test bid and budget), run it again with
+     `--apply` and create a decision "Done, reply reverse to undo: experiment <id> ended by its <mid-test check or
+     kill rule>", due in 14 days, with the verdict line. A test that passed its kill rule: say so in the log, no
+     decision. Never write a changes file bid for a group an experiment holds (apply_changes.py refuses it).
+     To start or extend one, see AGENTS.md "Never, without a human yes".
    - Bids, budgets and statuses: write reports/changes-<date>.json (shape in scripts/apply_changes.py) with a reason
      and an expected_effect per item (stated in terms of `business.primary_kpi` where it can be), run `uv run
      scripts/apply_changes.py <json>` (validate) and `--apply`. If it prints FAIL, fix the file; never work around
@@ -83,15 +95,16 @@ workflow commits the runtime files after you finish. Everything else stays the s
      CPC. With `smart_bidding`, the hand-off is proposed only when STRATEGY.md's last phase says its criteria are
      met, as a "Needs yes" decision.
 7. Create one decision per new proposal (check for an open duplicate first). Then write log/<YYYY-MM-DD>.md with
-   the weekly template in AGENTS.md, including Ad tests, Routine health and Open proposals.
+   the weekly template in AGENTS.md, including Ad tests, Routine health and Open proposals (and the experiments,
+   when there are any, under Observations and Changes).
 8. Commit by path (runtime files are gitignored on purpose):
    `git add -f log/<YYYY-MM-DD>.md reports/ decisions/ STRATEGY.md && git commit -m "Weekly review <YYYY-MM-DD>"`,
    then `git pull --rebase` and `git push`. If the rebase conflicts: copy this run's files (the log, the snapshot,
-   the review and changes JSON files, reports/ad_tests.json, reports/claims_check.json, decisions/, STRATEGY.md and
-   this run's lines of reports/changes.jsonl) to `.argmax/tmp/`, `git rebase --abort`, `git reset --hard
+   the review and changes JSON files, reports/ad_tests.json, reports/claims_check.json, reports/experiments*.json,
+   decisions/, STRATEGY.md and this run's lines of reports/changes.jsonl) to `.argmax/tmp/`, `git rebase --abort`, `git reset --hard
    origin/<branch>`, copy them back (append the ledger lines), run `uv run scripts/daily_scout.py <Sunday>` and
    `uv run scripts/daily_bids.py --apply` again (both safe to re-run), commit and push. Do not re-run the other
-   apply scripts or ad_test.py: those changes are already live. If pushing is still refused, push a branch and say
+   apply scripts, ad_test.py or experiments.py: those changes are already live. If pushing is still refused, push a branch and say
    so in the report.
 9. Create the weekly report "<YYYY-MM-DD> Google Ads weekly": the header from AGENTS.md (Reporting: 6 lines weekly, 5 monthly), then
    the log entry. Never use em-dashes. Never put CRM names or emails anywhere. Commit messages carry no co-author

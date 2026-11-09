@@ -87,6 +87,17 @@ The business profile (`business:`) is what every report and decision is shaped b
 - `bidding_end_state`: `smart_bidding` (a last phase hands bids to Google) or `manual_cpc` (the agent keeps Manual
   CPC for good; `guard.expected_bidding` must then be MANUAL_CPC). It must match STRATEGY.md's "Bidding end state"
   line; `doctor.py` checks.
+Optional sections you may meet later (all commented in `argmax.example.yaml`):
+- `negatives.protect_days` (default 30): a search term with a lead-signal conversion in its campaign over that many
+  days is never blocked by spend or clicks (junk words still block); 0 turns it off.
+- `market_price`: `safety_limit` is a money limit in the account currency, the hard cap of any market-price ceiling
+  (Google's first-position CPC estimate); `init.py` leaves it empty. Set it when you approve a market ceiling (an
+  experiment with `ceiling: market`, or a winning group in `market_price.groups`), e.g. 2 to 3 x
+  `limits.bid_ceiling`.
+- `experiments`: time-boxed bid tests (README, "Experiments"). Each one starts after your "yes" on a decision: add
+  its entry yourself, and when the config is locked in `ARGMAX_CONFIG_YAML`, update that variable too (the routines
+  read only it). When a test needs more budget, raise `limits.daily_budget_cap` and set the entry's
+  `reserve.base_cap` to the old cap, so the extra room goes to the test's campaign only.
 Config sources, first match wins: `ARGMAX_CONFIG_YAML` (the whole YAML as text), `ARGMAX_CONFIG` (a path),
 `argmax.yaml`. `ARGMAX_CUSTOMER_ID` and `ARGMAX_LOGIN_CUSTOMER_ID` override the ids. `argmax.yaml` holds no
 secrets: in your private copy, commit it with `git add -f argmax.yaml` so cloud runs find it.
@@ -191,8 +202,8 @@ whether they count, so the estimate assumes they do):
 
 | Run | Operations | Made of |
 |---|---|---|
-| Daily scout (Tue to Sun) | about 40, up to 60 | `daily_scout.py` 7 queries (guard 4, topic spend and search terms 3) plus 2 to 3 with ref codes; `daily_bids.py` 5 queries plus 1 per stepped group; `daily_negatives.py` 4 to 5 queries plus up to `negatives.max_per_day` (10) negatives. Each missed day it backfills adds about 10 |
-| Weekly review (Monday) | about 250 to 300, budget 400 | doctor 1; daily scout and bids about 25; snapshot 12; ad hoc `gaql.py` about 10; topic table 2; ad tests about 25; keyword review 4 queries; keyword ideas 3 + 1 per campaign + 1 per ad group (Basic only, about 30); keyword, match type and bid/budget changes validated then applied (each row twice, about 150 for 75 rows) |
+| Daily scout (Tue to Sun) | about 40, up to 60 | `daily_scout.py` 7 queries (guard 4, topic spend and search terms 3) plus 2 to 3 with ref codes; `daily_bids.py` 5 queries plus 1 per stepped group and 1 per group with a market-price ceiling; `daily_negatives.py` 4 to 5 queries plus up to `negatives.max_per_day` (10) negatives. Each missed day it backfills adds about 10 |
+| Weekly review (Monday) | about 250 to 300, budget 400 | doctor 1; daily scout and bids about 25; snapshot 12; ad hoc `gaql.py` about 10; topic table 2; ad tests about 25; keyword review 4 queries; keyword ideas 3 + 1 per campaign + 1 per ad group (Basic only, about 30); keyword, match type and bid/budget changes validated then applied (each row twice, about 150 for 75 rows); `experiments.py evaluate` about 4 queries per experiment, plus the market price and one mutate when it ends one |
 | Monthly review (the 1st) | under 50 | `monthly_report.py` and the topic table, about 10 queries, on top of that day's daily scout |
 | One-off | about 90 once | the first run with ref codes on collects 90 days of clicks (1 query per day) |
 

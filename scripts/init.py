@@ -1,7 +1,7 @@
 """Write argmax.yaml from answers. Non-interactive (what the onboarding agent calls) or interactive (by hand).
 
 Answers are a partial config (YAML or JSON) laid over argmax.example.yaml after its fictional parts are cleared
-(business profile, topics, ad group map, conversions, website, CRM, tracker): whatever you do not answer keeps the
+(business profile, topics, ad group map, conversions, website, CRM, tracker, market_price, experiments): whatever you do not answer keeps the
 example's limits and thresholds. Shortcuts: "topics" may be a list of names (each becomes a substring of itself), an
 empty or missing website.base_url turns ad tests off, and business.goal without primary_kpi gets the usual KPI for
 that goal (DEFAULT_KPI). The result is validated before anything is written.
@@ -64,6 +64,9 @@ def cleared(base):
     c["ref_codes"] = copy.deepcopy(config.DEFAULTS["ref_codes"])
     c["tracker"] = merge_plain(copy.deepcopy(config.DEFAULTS["tracker"]), {"backend": "files"})
     c["report"]["client_update"]["blocklist"] = []
+    # a market-price ceiling and experiments are set later, with the owner's "yes" (the example's are USD-sized)
+    c["market_price"] = copy.deepcopy(config.DEFAULTS["market_price"])
+    c["experiments"] = []
     return c
 
 
@@ -197,6 +200,9 @@ def read_back(c, cpc=None, budget_total=None):
     lines.append(f"- A keyword with no lead signal is proposed for a pause after {m(c['keyword_review']['min_pause_cost'])}.")
     lines.append(f"- A keyword is proposed for a tighter match type once {m(c['match_type_review']['min_off_intent_spend'])} "
                  "of its spend went to off-intent searches.")
+    safety = (c.get("market_price") or {}).get("safety_limit")
+    if safety:
+        lines.append(f"- No market-price ceiling (experiments, market_price.groups) ever goes above {m(safety)}.")
     if cpc:
         lines.append(f"- STRATEGY.md evidence floor: no topic is cut on outcome data before about "
                      f"{m(amount(EVIDENCE_MULTIPLE * cpc, cur))} spent on it ({EVIDENCE_MULTIPLE} x CPC).")

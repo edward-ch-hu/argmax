@@ -24,9 +24,14 @@ Refuses the whole file (FAIL lines, exit 1, nothing changed) when:
 - the total daily budget across enabled campaigns after the change is over limits.daily_budget_cap (status changes
   in the same file count; paused campaigns don't; a budget shared by several campaigns counts once)
 - an ad group bid is more than limits.weekly_bid_change away from that group's bid at the start of the week
-  (Monday 00:00 in the account time zone), or outside limits.bid_floor to limits.bid_ceiling
+  (Monday 00:00 in the account time zone), or outside limits.bid_floor to the group's ceiling: limits.bid_ceiling,
+  or for a group with a started (not killed) experiment its ceiling, or for a market_price.groups group the market
+  price (never over market_price.safety_limit; experiments.group_ceiling)
 - a bid is set on a winning-topic Search group still inside its daily_bids.py stepping window (window_days from the
   group's first daily evaluation; a group the daily never evaluated has no window)
+- a bid is set on a group an experiment holds (from its start date until experiments.py evaluate judges it)
+- an experiment's reserve holds (config: experiments, reserve) and the enabled campaigns other than its campaign
+  would total over its reserve.others_max, higher than before the change
 - a Performance Max campaign is enabled (unless limits.allow_enable_performance_max)
 - a name does not match exactly one campaign, ad group or keyword, or the same thing is listed twice
 All changes go in one atomic request.
@@ -42,7 +47,9 @@ from pathlib import Path
 import ads_client
 import config
 import daily_bids
+import experiments
 import ledger
+import market_price
 from ads_client import rows
 from google.ads.googleads.errors import GoogleAdsException
 from topics import ad_group_topic
@@ -85,11 +92,15 @@ def load_account(ga, with_keywords):
     return camps, groups, keywords
 
 
-def evaluate(changes, camps, groups, keywords, bid_history, starts, today, cfg=None):
+def evaluate(changes, camps, groups, keywords, bid_history, starts, today, cfg=None, state=None, ceilings=None):
     """Check a changes file against the account (plain dicts). Pure, for tests.
-    bid_history: {ad group resource: [(time, old, new, was_enabled)]} since Monday; starts: daily_bids.window_starts().
+    bid_history: {ad group resource: [(time, old, new, was_enabled)]} since Monday; starts: daily_bids.window_starts();
+    state: experiments.load_state() (default: no experiment ended); ceilings: {(campaign, ad group): ceiling} for
+    groups whose ceiling needs a live market price (default: experiments.group_ceiling without one).
     Returns (fails, plan, (total before, total after)); plan = {(kind, resource): {fields, labels, ledger}}."""
     cfg = cfg or config.get()
+    state = state or {}
+    ceilings = ceilings or {}
     lim = cfg.limits
     cur = cfg.account.currency
     budget_users = {}
@@ -145,6 +156,11 @@ def evaluate(changes, camps, groups, keywords, bid_history, starts, today, cfg=N
         if isinstance(bid, bool) or not isinstance(bid, (int, float)) or bid <= 0:
             fails.append(f"bid {where}: cpc must be a positive number")
             continue
+        exp = experiments.holding(g["campaign"], g["name"], today, state, cfg)
+        if exp:
+            fails.append(f"bid {where}: experiment {exp['id']} holds this bid from {exp['start']} until it is judged "
+                         f"(end {exp['end']}); it steps by its own rules and only experiments.py ends it")
+            continue
         if daily_bids.managed(g["channel"], g["name"]) and cfg.stepping.enabled and \
                 daily_bids.stepping(g["campaign"], g["name"], today, starts):
             fails.append(f"bid {where}: daily_bids.py is still stepping this winning-topic group; change its rules instead")
@@ -158,8 +174,10 @@ def evaluate(changes, camps, groups, keywords, bid_history, starts, today, cfg=N
             fails.append(f"bid {where}: {cur} {start:.2f} on Monday -> {new:.2f} is {new / start - 1:+.0%}, "
                          f"over the +/-{lim.weekly_bid_change:.0%} weekly limit")
             continue
-        if not lim.bid_floor - 1e-9 <= new <= lim.bid_ceiling + 1e-9:
-            fails.append(f"bid {where}: {cur} {new:.2f} is outside {lim.bid_floor:.2f} to {lim.bid_ceiling:.2f}")
+        ceiling = ceilings.get((g["campaign"], g["name"])) or \
+            experiments.group_ceiling(g["campaign"], g["name"], today, state, None, cfg)
+        if not lim.bid_floor - 1e-9 <= new <= ceiling + 1e-9:
+            fails.append(f"bid {where}: {cur} {new:.2f} is outside {lim.bid_floor:.2f} to {ceiling:.2f}")
             continue
         add("ad_group", g["resource"], "cpc_bid_micros", ads_client.micros(bid, cur),
             f"bid       {where}: {cur} {g['bid']:.2f} -> {new:.2f} (Monday {start:.2f}, {new / start - 1:+.0%})",
@@ -199,16 +217,24 @@ def evaluate(changes, camps, groups, keywords, bid_history, starts, today, cfg=N
         else:
             fails.append(f"status {s}: level must be campaign, ad_group or keyword")
 
+    def budgets(after):
+        """[(campaign, budget resource, amount)] of the enabled campaigns, before or after the change."""
+        return [(c["name"], c["budget_resource"], new_budget.get(c["resource"], c["budget"]) if after else c["budget"])
+                for c in camps if (new_status.get(c["resource"], c["status"]) if after else c["status"]) == "ENABLED"]
+
     def total(after):
         """Across enabled campaigns; a shared budget counts once (its amount cannot change here)."""
-        return ads_client.budget_total(
-            (c["budget_resource"], new_budget.get(c["resource"], c["budget"]) if after else c["budget"])
-            for c in camps if (new_status.get(c["resource"], c["status"]) if after else c["status"]) == "ENABLED")
+        return ads_client.budget_total((res, amount) for _, res, amount in budgets(after))
 
     totals = (total(False), total(True))
     if totals[1] > lim.daily_budget_cap + 1e-9:
         fails.append(f"total daily budget across enabled campaigns would be {cur} {totals[1]:.2f}, "
                      f"over the {cur} {lim.daily_budget_cap:g} cap")
+    for e in experiments.reserves(today, state, cfg):
+        problem = experiments.reserve_problem(e, experiments.others_total(budgets(False), e["campaign"]),
+                                              experiments.others_total(budgets(True), e["campaign"]), cur)
+        if problem:
+            fails.append(problem)
     return fails, plan, totals
 
 
@@ -217,7 +243,19 @@ def check(ga, changes):
     today = ads_client.today()
     monday = today - timedelta(days=today.weekday())
     bid_history = daily_bids.bid_changes(ga, monday, today + timedelta(days=1))
-    return evaluate(changes, camps, groups, keywords, bid_history, daily_bids.window_starts(), today)
+    state = experiments.load_state()
+    ceilings = {}
+    for b in changes.get("bids", []):
+        g = next((g for g in groups if g["campaign"] == b.get("campaign") and g["name"] == b.get("ad_group")), None)
+        if g and experiments.needs_market(g["campaign"], g["name"], today, state):
+            price, note = market_price.fetch(ga, g["resource"], str(today - timedelta(days=1)),
+                                             f"{g['campaign']} / {g['name']}")
+            if note:
+                print(f"NOTE   {note}")
+            ceilings[(g["campaign"], g["name"])] = experiments.group_ceiling(g["campaign"], g["name"], today, state,
+                                                                             price)
+    return evaluate(changes, camps, groups, keywords, bid_history, daily_bids.window_starts(), today, state=state,
+                    ceilings=ceilings)
 
 
 def operations(client, plan):

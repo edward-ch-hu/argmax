@@ -18,6 +18,15 @@ day the group shows up in a daily file's bids section. After the window the grou
 BID or BUDGET notice; the weekly review sets its bid. A group the daily never evaluated has no window yet, so the
 weekly may set its bid (apply_changes.py refuses bids only inside a window).
 
+Experiments (config: experiments, scripts/experiments.py): from its start date to its end date a group in a running
+experiment is stepped by the experiment's own rules (its step, weekly limit and stop_rank_lost; raised only, never
+lowered for being visible; held when its campaign loses over stepping.budget_lost_max to budget), whatever its
+stepping window says, and also when it is not a winning-topic group. Ceilings: a group's experiment ceiling (fixed,
+or the market price), the market price for groups in market_price.groups, else limits.bid_ceiling; a market price
+never goes over market_price.safety_limit (market_price.py). The market price the run saw is recorded as
+"market_price" in the group's bids row, and each experiment step carries the experiment's id in the bids row and
+in the ledger.
+
 Adds a "bids" section to the day in reports/daily/week-<MONDAY>.json (run after daily_scout.py) and prints one
 NOTIFY line per change, plus one per group newly held by its campaign budget. Each applied step is logged to
 reports/changes.jsonl (ledger.py, routine "daily").
@@ -32,7 +41,9 @@ from pathlib import Path
 
 import ads_client
 import config
+import experiments
 import ledger
+import market_price
 from ads_client import rows
 from daily_scout import OUT_DIR, previous_day, read, week_path
 from google.ads.googleads.errors import GoogleAdsException
@@ -151,12 +162,23 @@ def new_budget_holds(groups, previous_groups):
     return [g for g in groups if (g["campaign"], g["ad_group"]) in budget_held(groups) - before]
 
 
-def decide(bid, impressions, rank_lost, budget_lost, approved, late_change, start_bid, weekly_limit_applies, cfg=None):
-    """(action, why, new bid) for one group that is still in its stepping window. Pure, for tests.
-    late_change: (time, old, new) of a bid change after the data day ended, or None."""
+def stepping_rules(cfg=None, ceiling=None):
+    """decide() rules for a winning group inside its stepping window (config: stepping)."""
+    cfg = cfg or config.get()
+    s = cfg.stepping
+    return {"step": s.step, "weekly_limit": s.weekly_limit, "low": s.rank_lost_band[0], "high": s.rank_lost_band[1],
+            "lower": True, "ceiling": cfg.limits.bid_ceiling if ceiling is None else ceiling, "experiment": None}
+
+
+def decide(bid, impressions, rank_lost, budget_lost, approved, late_change, start_bid, weekly_limit_applies, cfg=None,
+           rules=None):
+    """(action, why, new bid) for one group that is still in its stepping window or in a running experiment. Pure.
+    late_change: (time, old, new) of a bid change after the data day ended, or None. rules: stepping_rules() (the
+    default) or experiments.step_rules()."""
     cfg = cfg or config.get()
     s, lim = cfg.stepping, cfg.limits
-    low_band, high_band = s.rank_lost_band
+    r = rules or stepping_rules(cfg)
+    low_band, high_band = r["low"], r["high"]
     cur = cfg.account.currency
     if late_change:
         return "hold", f"bid already changed at {late_change[0][:16]} ({late_change[1]:.2f} -> {late_change[2]:.2f})", bid
@@ -168,22 +190,26 @@ def decide(bid, impressions, rank_lost, budget_lost, approved, late_change, star
         direction, why = 1, "0 impressions with an approved ad"
     elif rank_lost > high_band:
         direction, why = 1, f"lost {rank_lost:.0%} to rank"
+    elif not r["lower"]:
+        return "hold", f"lost {rank_lost:.0%} to rank (experiment {r['experiment']}: raised only while over " \
+                       f"{high_band:.0%}, never lowered)", bid
     elif rank_lost < low_band and impressions >= s.min_impressions:
         direction, why = -1, f"lost only {rank_lost:.0%} to rank"
     else:
         return "hold", (f"lost {rank_lost:.0%} to rank (in the {low_band:.0%} to {high_band:.0%} band)"
                         if impressions >= s.min_impressions or rank_lost >= low_band
                         else f"only {impressions} impressions"), bid
-    low, high = lim.bid_floor, lim.bid_ceiling
+    low, high = lim.bid_floor, r["ceiling"]
     if weekly_limit_applies:
-        low, high = max(low, start_bid * (1 - s.weekly_limit)), min(high, start_bid * (1 + s.weekly_limit))
-    new = round(min(max(bid * (1 + direction * s.step), low), high), 2)
+        low, high = max(low, start_bid * (1 - r["weekly_limit"])), min(high, start_bid * (1 + r["weekly_limit"]))
+    new = round(min(max(bid * (1 + direction * r["step"]), low), high), 2)
     if (new - bid) * direction <= 0:
         return "hold", f"{why}, but at the limit ({cur} {low:.2f} to {high:.2f} this week)", bid
     return ("raise" if direction > 0 else "lower"), why, new
 
 
 def plan(client, day):
+    """(groups, notes): one row per winning-topic group and per group in a running experiment, and NOTE lines."""
     cfg = config.get()
     ga = client.get_service("GoogleAdsService")  # keep a reference so the stream isn't closed early
     run_day = date.fromisoformat(day) + timedelta(days=1)
@@ -201,12 +227,16 @@ def plan(client, day):
         AND campaign.status = 'ENABLED' AND campaign.advertising_channel_type = 'SEARCH'""")}
 
     starts = window_starts()
-    out = []
+    state = experiments.load_state()
+    running = {(e["campaign"], e["ad_group"]): e for e in cfg.experiments
+               if experiments.stepping_today(e, run_day, state)}
+    out, notes = [], []
     for r in rows(ga, """SELECT campaign.name, ad_group.name, ad_group.resource_name, ad_group.cpc_bid_micros
             FROM ad_group WHERE campaign.status = 'ENABLED' AND campaign.advertising_channel_type = 'SEARCH'
             AND ad_group.status = 'ENABLED'"""):
         name, res = r.ad_group.name, r.ad_group.resource_name
-        if not managed("SEARCH", name):
+        exp = running.get((r.campaign.name, name))
+        if not exp and not managed("SEARCH", name):
             continue
         bid = r.ad_group.cpc_bid_micros / 1e6
         m = stats.get(res)
@@ -215,17 +245,44 @@ def plan(client, day):
         row = {"campaign": r.campaign.name, "ad_group": name, "resource": res, "bid": bid, "new_bid": bid,
                "impressions": impressions, "rank_lost": rank_lost,
                "budget_lost": round(budget_lost.get(r.campaign.name, 0.0), 3)}
+        if exp:
+            row["experiment"] = exp["id"]
         out.append(row)
-        if settled(r.campaign.name, name, run_day, starts):
+        market = None
+        if experiments.needs_market(r.campaign.name, name, run_day, state, cfg):  # recorded for the weekly too
+            market, note = market_price.fetch(ga, res, day, f"{r.campaign.name} / {name}")
+            row["market_price"] = market
+            if note:
+                notes.append(note)
+        if not exp and settled(r.campaign.name, name, run_day, starts):
             ended = starts[(r.campaign.name, name)] + window() - timedelta(days=1)
             row["action"], row["why"] = "settled", f"stepping window ended {ended}; the weekly review sets this bid"
             continue
+        ceiling = experiments.group_ceiling(r.campaign.name, name, run_day, state, market, cfg)
         group_changes = changes.get(res, [])
         late = [c for c in group_changes if c[0] >= str(run_day)]
-        new_until = str(cfg.stepping.new_groups.get(name, ""))
+        if exp:
+            rules, weekly = experiments.step_rules(exp, ceiling), True
+        else:
+            rules, weekly = stepping_rules(cfg, ceiling), str(run_day) >= str(cfg.stepping.new_groups.get(name, ""))
         row["action"], row["why"], row["new_bid"] = decide(
             bid, impressions, rank_lost, row["budget_lost"], res in approved, late[-1] if late else None,
-            week_start_bid(group_changes, bid), str(run_day) >= new_until, cfg)
+            week_start_bid(group_changes, bid), weekly, cfg, rules)
+    return out, notes
+
+
+def step_entries(steps):
+    """Ledger lines for the day's steps; an experiment step carries the experiment's id."""
+    out = []
+    for g in steps:
+        exp = g.get("experiment")
+        out.append({**ledger.entry("ad_group", f"{g['campaign']} / {g['ad_group']}", "cpc", g["bid"], g["new_bid"],
+                                   f"{'experiment ' + exp if exp else 'daily'} step: {g['why']}",
+                                   ad_group_topic(g["ad_group"]),
+                                   "rank-lost impression share moves toward the band" if not exp else
+                                   "more impressions until rank-lost is under the experiment's stop",
+                                   routine="daily", experiment=exp),
+                    "campaign": g["campaign"], "ad_group": g["ad_group"]})
     return out
 
 
@@ -234,7 +291,7 @@ def main():
     if not cfg.stepping.enabled:
         print("stepping.enabled is false in argmax.yaml: no daily bid steps")
         return
-    if not cfg.winning_topics:
+    if not cfg.winning_topics and not cfg.experiments:
         print("winning_topics is empty in argmax.yaml: no group to step")
         return
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
@@ -245,14 +302,12 @@ def main():
     if "--apply" in sys.argv and not is_yesterday:
         print(f"{day} is not yesterday: plan only, nothing applied")
     client = ads_client.load()
-    groups = plan(client, day)
+    groups, notes = plan(client, day)
+    for note in notes:
+        print(f"NOTE  {note}")
     steps = [g for g in groups if g["action"] in ("raise", "lower")]
     cur = ads_client.currency()
-
-    entries = [{**ledger.entry("ad_group", f"{g['campaign']} / {g['ad_group']}", "cpc", g["bid"], g["new_bid"],
-                               f"daily step: {g['why']}", ad_group_topic(g["ad_group"]),
-                               "rank-lost impression share moves toward the band", routine="daily"),
-                "campaign": g["campaign"], "ad_group": g["ad_group"]} for g in steps]
+    entries = step_entries(steps)
     ops = []
     for g in steps:
         op = client.get_type("AdGroupOperation")
@@ -270,10 +325,19 @@ def main():
 
     for g in groups:
         label = ("VALID" if validate_only else "DONE ") if g in steps else "SETTL" if g["action"] == "settled" else "HOLD "
-        print(f"{label} {g['campaign']} / {g['ad_group']}: {cur} {g['bid']:.2f} -> {g['new_bid']:.2f} ({g['why']})")
+        extra = "".join([f", experiment {g['experiment']}" if g.get("experiment") else "",
+                         f", market price {g['market_price']:.2f}" if g.get("market_price") else ""])
+        print(f"{label} {g['campaign']} / {g['ad_group']}: {cur} {g['bid']:.2f} -> {g['new_bid']:.2f} ({g['why']}{extra})")
+    run_day = date.fromisoformat(day) + timedelta(days=1)
+    state = experiments.load_state()
+    for e in cfg.experiments:
+        if experiments.phase(e, run_day, state) == "judging":
+            print(f"NOTE  experiment {e['id']} stopped stepping after {e['end']}: the weekly judges it "
+                  "(experiments.py evaluate)")
 
     if not validate_only:
-        for c, a in record_evaluations(groups, date.fromisoformat(day) + timedelta(days=1)):
+        managed_groups = [g for g in groups if managed("SEARCH", g["ad_group"])]
+        for c, a in record_evaluations(managed_groups, run_day):
             print(f"NOTE  {c} / {a}: first daily evaluation, its {cfg.stepping.window_days}-day stepping window starts")
         path = week_path(day)
         week = read(path)
@@ -283,7 +347,9 @@ def main():
         else:
             print(f"NOTIFY ALERT daily_bids: {day} is missing from {path}; run daily_scout.py first")
         for g in steps:
-            print(f"NOTIFY BID   {g['campaign']} / {g['ad_group']}: {cur} {g['bid']:.2f} -> {g['new_bid']:.2f} ({g['why']})")
+            tag = f", experiment {g['experiment']}" if g.get("experiment") else ""
+            print(f"NOTIFY BID   {g['campaign']} / {g['ad_group']}: {cur} {g['bid']:.2f} -> {g['new_bid']:.2f} "
+                  f"({g['why']}{tag})")
         prev = previous_day(day)
         for g in new_budget_holds(groups, (prev or {}).get("bids")):
             print(f"NOTIFY BUDGET {g['campaign']} / {g['ad_group']} held at {cur} {g['bid']:.2f}: {g['why']}")
