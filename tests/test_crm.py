@@ -63,7 +63,7 @@ def test_none_source_degrades():
 def test_ref_codes_and_fill(use):
     use(**CSV, **{"ref_codes.enabled": True, "ref_codes.live_from": "2026-01-06", "ref_codes.test_codes": []})
     rows = crm.load()
-    assert rows[0]["refs"] == ["AG-1A2B3C4D"]
+    assert rows[0]["refs"] == ["AM-1A2B3C4D"]
     fill = crm.ref_fill(rows)
     assert fill["since"] == "2026-01-06" and fill["leads"] == 4 and fill["with_ref"] == 0
     assert crm.ref_fill(rows, since="2026-01-01")["since"] == "2026-01-06"

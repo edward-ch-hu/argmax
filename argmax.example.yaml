@@ -133,7 +133,7 @@ crm:
 
 ref_codes:                   # optional: tie CRM leads to ad clicks (docs/ref-codes.md)
   enabled: false
-  prefix: "AG-"
+  prefix: "AM-"
   live_from: null            # YYYY-MM-DD your site started adding codes
   test_codes: []             # codes from your own test clicks, ignored
 

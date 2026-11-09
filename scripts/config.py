@@ -62,7 +62,7 @@ DEFAULTS = {
                         "name": None, "email": None, "ref": None},
             "statuses": {"talking": [], "trial": [], "won": [], "lost_after_trial": [], "lost_no_trial": []},
             "default_status": "talking", "deal_value_label": "MRR", "deal_value_fx": None, "stale_after_days": 14},
-    "ref_codes": {"enabled": False, "prefix": "AG-", "live_from": None, "test_codes": []},
+    "ref_codes": {"enabled": False, "prefix": "AM-", "live_from": None, "test_codes": []},
     "tracker": {"backend": "files", "github": {}, "clickup": {}, "notion": {}, "linear": {}, "files": {}},
     "report": {"history_start": None, "client_update": {"enabled": True, "language": None, "blocklist": []}},
 }
@@ -378,7 +378,7 @@ def validate(c):
 
     r = c["ref_codes"]
     if not (isinstance(r["prefix"], str) and re.fullmatch(r"[A-Z0-9]{1,6}-", r["prefix"])):
-        p.append(f"ref_codes.prefix: 1 to 6 capital letters or digits and a dash, like AG- (got {r['prefix']!r})")
+        p.append(f"ref_codes.prefix: 1 to 6 capital letters or digits and a dash, like AM- (got {r['prefix']!r})")
     if r["live_from"] is not None:
         try:
             r["live_from"] = str(date.fromisoformat(str(r["live_from"])))

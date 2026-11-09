@@ -6,7 +6,7 @@ into a short code, pre-fills it into the contact message, and sales pastes it in
 the daily scout) finds the click again: campaign, ad group, keyword.
 
 ```
-code = prefix + SHA1(gclid).hex()[:8].upper()        e.g. AG-1A2B3C4D   (prefix: ref_codes.prefix, default AG-)
+code = prefix + SHA1(gclid).hex()[:8].upper()        e.g. AM-1A2B3C4D   (prefix: ref_codes.prefix, default AM-)
 ```
 
 The gclid itself is never stored in the repo; Google Ads keeps click ids for 90 days and the daily saves only
@@ -27,7 +27,7 @@ fills a hidden form field. Adjust the selectors to your site.
 ```html
 <script>
 (async function () {
-  const PREFIX = "AG-";                      // must match ref_codes.prefix
+  const PREFIX = "AM-";                      // must match ref_codes.prefix
   const KEY = "argmax_ref";
   const gclid = new URLSearchParams(location.search).get("gclid");
   if (gclid && crypto.subtle) {
@@ -61,7 +61,7 @@ fills a hidden form field. Adjust the selectors to your site.
 ```
 
 Check it: open your site with `?gclid=test123`, then compare the code with
-`uv run python -c "import hashlib; print('AG-' + hashlib.sha1(b'test123').hexdigest()[:8].upper())"`.
+`uv run python -c "import hashlib; print('AM-' + hashlib.sha1(b'test123').hexdigest()[:8].upper())"`.
 Add that code to `ref_codes.test_codes`.
 
 ## Reading the results
