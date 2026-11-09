@@ -12,7 +12,7 @@ You are onboarding a new argmax user. Read `AGENTS.md` first. Rules for the whol
   `uv run scripts/onboarding.py next` gives the next step, `uv run scripts/onboarding.py set <step> <done|pending|
   skipped> "<short note>"` records one. Before uv exists (step a), keep notes in chat and record them once it does.
   On "continue onboarding", run `uv run scripts/onboarding.py` and resume at the first step not done or skipped.
-- Never echo secrets (developer token, client secret, refresh token, API keys) back in chat, and never write them
+- Never echo secrets (client secret, refresh token, an old developer token, API keys) back in chat, and never write them
   anywhere but `google-ads.yaml`, `client_secret*.json` or environment variables (all gitignored). If the user
   pastes one in chat, put it where it belongs and tell them you will not repeat it.
 - Never read CRM names or emails: only the header row and the list of status values (`crm.py inspect`).
@@ -38,38 +38,71 @@ the public repo is only a template. Check `git remote -v`:
 - Local only is fine too (scheduling is then by hand or local cron). Record the choice in the note.
 
 ## c. google_ads_api
-What this is for: the scripts talk to Google Ads through its API, which needs four things: a developer token
-(identifies the app), an OAuth client (identifies the program asking for access), a refresh token (the user's
-consent, stored locally), and a manager account (the API's home). Walk through, one at a time, checking each:
-1. Manager account (MCC): https://ads.google.com/home/tools/manager-accounts/ , create one with the same Google
-   login. In the manager: Accounts, the + button, "Link existing account", enter the ad account's customer id;
-   accept the link in the ad account (Admin, Access and security, Managers).
-2. Developer token: in the manager account, Admin (gear), API Center. Fill in the form; the token appears there.
-   It starts at Test access (works only with test accounts). Live accounts need Basic access: apply from the same
-   page; approval takes a few business days. While waiting, finish every other step and record
-   `google_ads_api pending "waiting on Basic access"`.
-3. Google Cloud project: https://console.cloud.google.com , project picker, New project. Then APIs and Services,
-   Library, search "Google Ads API", Enable. If they will use a Google Sheet as CRM, also enable "Google Sheets API".
-4. OAuth consent screen: APIs and Services, OAuth consent screen (Google Auth Platform, Branding / Audience): user
+What this is for: the scripts talk to Google Ads through its API. Since September 9, 2026 that needs no developer
+token and no manager account, only three things: a Google Cloud project with the Google Ads API on (its access level
+decides what the API allows), an OAuth client of that project (identifies the program asking for access), and a
+refresh token (the user's consent, stored locally). Walk through, one at a time, checking each:
+1. Google Cloud project: https://console.cloud.google.com , project picker, New project. A project on the Free Trial
+   or with suspended billing gets access applications rejected (Troubleshooting below), so say so up front.
+2. APIs and Services, Library, search "Google Ads API", Enable. If they will use a Google Sheet as CRM, also enable
+   "Google Sheets API". Enabling gives the project Test access (test accounts only).
+3. OAuth consent screen: APIs and Services, OAuth consent screen (Google Auth Platform, Branding / Audience): user
    type External, app name "argmax", their email; under Audience add their Google account as a test user.
-5. OAuth client: APIs and Services, Credentials, Create credentials, OAuth client ID, application type "Desktop
+4. OAuth client: APIs and Services, Credentials, Create credentials, OAuth client ID, application type "Desktop
    app". Download the JSON into the repo root as `client_secret.json` (gitignored).
-6. `cp google-ads.example.yaml google-ads.yaml`; the user fills in `developer_token`, `client_id`,
-   `client_secret` (from the JSON) and `login_customer_id` (the manager id, 10 digits). Offer to fill client_id and
-   client_secret from `client_secret.json` yourself, without printing them.
+5. Explorer access: open https://console.cloud.google.com/google/ads-apis/overview (same project), check the current
+   level says Test, expand "Upgrade access level", check the next level says Explorer, click "Apply for access". It
+   is usually approved automatically within minutes. If it is not, finish the other steps and record
+   `google_ads_api pending "waiting on Explorer access"`.
+6. `cp google-ads.example.yaml google-ads.yaml`; it needs only `client_id` and `client_secret` (from the JSON) and
+   the refresh token. Offer to fill client_id and client_secret from `client_secret.json` yourself, without printing
+   them. If they already have a developer token or a manager account, see "Existing developer token or manager
+   account" below; neither is needed.
 7. `uv run scripts/get_refresh_token.py client_secret.json`: a browser opens; they sign in with the Google login that
-   has access to the manager and accept. It saves the refresh token into `google-ads.yaml`.
-8. `uv run scripts/accounts.py` lists the accounts the login reaches. A DEVELOPER_TOKEN_NOT_APPROVED error means
-   Basic access is still pending (test accounts only): record pending and go on.
+   opens their ad account and accept. It saves the refresh token into `google-ads.yaml`.
+8. `uv run scripts/accounts.py` lists the accounts the login reaches. A CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION
+   error means the project still has Test access: Explorer is pending (step 5); record pending and go on.
+9. Access level. The API does not report it, so: if `accounts.py` reads their live account, the project has at least
+   Explorer; ask them to read the exact level off the Overview page ("Current access level") and remember it for the
+   answers in step d (`api: {access_level: <test|explorer|basic|standard>}`). Explain it in plain words:
+   - "Explorer lets argmax read and manage your live account, up to 2,880 API operations a day. argmax needs about
+     40 on a normal day and up to about 400 on Mondays, so that is plenty. The one thing Explorer leaves out is
+     Google's Keyword Planner, so the weekly keyword review skips new keyword ideas and says so."
+   - "Basic raises the limit to 15,000 a day and adds Keyword Planner. It needs brand verification of the Cloud
+     project first (a check that the app name and domain are yours), then an application Google reviews
+     automatically within minutes."
+   Suggest Basic only if they want keyword ideas or a run hits the daily limit; otherwise Explorer is the
+   recommendation. Without Basic, ideas are skipped automatically; `keyword_review: {ideas: off}` silences the
+   attempt for good.
 Record `google_ads_api done` once `accounts.py` lists their live account.
+
+Existing developer token or manager account: both keep working. An old developer token may stay in
+`google-ads.yaml` (Google ignores it and will reject it in a future major API version, so it can also go); its
+access level moved to the Cloud project that owns their OAuth client if that project used it in the 90 days before
+the sunset. A manager account matters only for `login_customer_id`: set it to the manager's id when the ad account
+is reached through that manager (`accounts.py` shows "via manager"), and leave it empty when their login opens the
+ad account directly.
+
+Troubleshooting (tell the user only the one that applies):
+- AUTHORIZATION_ERROR on their live account after an upgrade: a known Google issue for projects upgraded after
+  September 9, 2026. Workaround: a new Cloud project (steps 1 to 5 again: enable the API, a new Desktop OAuth client,
+  apply for Explorer), then `get_refresh_token.py` with the new `client_secret.json` and update `client_id` and
+  `client_secret`.
+- Explorer or Basic rejected ("does not meet the eligibility criteria" or "requires a successfully verified OAuth
+  brand profile"): a known Google issue when the project is on the Google Cloud Free Trial or its billing is
+  suspended or disabled. Upgrade to a paid billing account, wait a few minutes and apply again, or use another Cloud
+  project that is already brand verified.
+- USER_PERMISSION_DENIED: the login they signed in with cannot open that account, or `login_customer_id` is wrong.
+- More in SETUP.md, "Troubleshooting".
 
 ## d. account
 `uv run scripts/accounts.py --json`. Show the list (id, name, currency, time zone, manager or ad account) and let
 them pick the ad account to run. Take currency and time zone from the API, do not ask (step e shows them back for
-confirmation). If it is reached through a manager, that manager id is the `login_customer_id`. Write a first
-answers file in `.argmax/answers.yaml`:
+confirmation). Only when it is listed "via manager" is that manager id the `login_customer_id`; an account the login
+opens directly gets an empty one. Write a first answers file in `.argmax/answers.yaml`:
 ```yaml
-account: {customer_id: "<id>", login_customer_id: "<manager id or empty>", name: "<name>", currency: <CUR>, timezone: <Area/City>}
+account: {customer_id: "<id>", login_customer_id: "<manager id, or empty>", name: "<name>", currency: <CUR>, timezone: <Area/City>}
+api: {access_level: <the level from step c9>}
 limits: {daily_budget_cap: <current total daily budget of enabled campaigns, rounded up>}
 topics: [general]          # placeholder until step h
 conversions: {lead_signals: [<a conversion action name>]}
@@ -192,7 +225,8 @@ Re-run init, then `uv run scripts/doctor.py`. Record `guardrails done`.
 Read-only and validate-only, so nothing changes in the account:
 1. `uv run scripts/daily_scout.py` and explain its output (topics, winning-topic terms, NOTIFY lines or QUIET).
 2. `uv run scripts/daily_bids.py` and `uv run scripts/daily_negatives.py` without `--apply`: what they would do.
-3. `uv run scripts/keyword_review.py 7`, then `uv run scripts/topic_table.py`: walk them through the numbers.
+3. `uv run scripts/keyword_review.py 7`, then `uv run scripts/topic_table.py`: walk them through the numbers. On
+   Explorer access it prints a NOTE that keyword ideas were skipped: expected, say why in one line.
 4. Write a first weekly log `log/<today>.md` (template in AGENTS.md; "Changes made: none, onboarding run") and
    create a first weekly report and one real decision if the data suggests one (otherwise a sample decision
    "Unless you say no: keep the current daily budget cap" due in 7 days) in their tracker, so they see the loop.

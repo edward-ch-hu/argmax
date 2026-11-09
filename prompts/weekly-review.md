@@ -60,7 +60,9 @@ workflow commits the runtime files after you finish. Everything else stays the s
    - Keywords: `uv run scripts/keyword_review.py`, decide each row's `approve` in the JSON, then
      `uv run scripts/apply_keyword_review.py <json>` (validate) and `--apply`. Set `approve` false for a term undone
      above. Move a `held_winning` row to `negatives` only when it is clearly off-intent. Winning-topic search terms
-     with clicks in the daily files are keyword candidates.
+     with clicks in the daily files are keyword candidates. A NOTE that keyword ideas were skipped (Explorer access,
+     `keyword_review.ideas: off`, or Google refused Keyword Planner) is expected: mention it once in the log, not as
+     a failure.
    - Match types, in the first weekly of each month only: `uv run scripts/match_type_review.py`. When it proposes
      anything, create one decision "Unless you say no: Tighten <n> keywords to phrase/exact" (due in 7 days) with
      the top rows and the JSON path. In the first weekly after its due date with no "no": set `approve` true on its

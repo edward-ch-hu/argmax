@@ -209,6 +209,11 @@ Never, without a human "yes" on a decision:
 - Before calling a traffic change on a Search campaign a "collapse", split it by `segments.ad_network_type`
   (`performance_snapshot.py` section `campaign_networks`): Display ending looks like a collapse in totals.
 - A ref code found on two clicks is "ambiguous": report it, never guess.
+- Google Ads API access needs no developer token or manager account (sunset 2026-09-09); access levels belong to
+  the Cloud project that owns the OAuth client (`api.access_level`). Explorer allows 2,880 operations a day on live
+  accounts (argmax needs well under 400) and no Keyword Planner: keyword_review.py then skips ideas with a NOTE,
+  which is expected, not a failure. A quota error (RESOURCE_EXHAUSTED) stops a run for the day: report it, and
+  propose Basic access only if it repeats.
 
 ## Hard rules for every agent
 - Validate first, then `--apply`. Never work around a FAIL line; fix the input or propose a change.

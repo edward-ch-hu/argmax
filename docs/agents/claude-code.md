@@ -64,9 +64,9 @@ needs a claude.ai subscription login). Create three:
 | argmax monthly review | 10:00 on the 1st | `Follow prompts/monthly-review.md.` |
 
 Custom cron is read as UTC unless prefixed with `CRON_TZ=<Area/City>`. Then, in the task's cloud environment:
-- Environment variables: `GOOGLE_ADS_DEVELOPER_TOKEN`, `GOOGLE_ADS_CLIENT_ID`, `GOOGLE_ADS_CLIENT_SECRET`,
-  `GOOGLE_ADS_REFRESH_TOKEN`, `GOOGLE_ADS_LOGIN_CUSTOMER_ID`, `GOOGLE_ADS_USE_PROTO_PLUS=True`, and `GH_TOKEN` for
-  the github-issues tracker. `argmax.yaml` is committed in your private copy (or set `ARGMAX_CONFIG_YAML`).
+- Environment variables: `GOOGLE_ADS_CLIENT_ID`, `GOOGLE_ADS_CLIENT_SECRET`, `GOOGLE_ADS_REFRESH_TOKEN`, and
+  `GH_TOKEN` for the github-issues tracker. No developer token is needed; `GOOGLE_ADS_LOGIN_CUSTOMER_ID` only when
+  the ad account is reached through a manager account. `argmax.yaml` is committed in your private copy (or set `ARGMAX_CONFIG_YAML`).
 - Network: allow `googleads.googleapis.com`, `oauth2.googleapis.com`, `sheets.googleapis.com` (Sheets CRM), your
   website (claims check), `pypi.org` and `files.pythonhosted.org` (uv sync), and `api.github.com`.
 - Pushes: tasks push to `claude/`-prefixed branches unless allowed otherwise. The prompts push to the default
