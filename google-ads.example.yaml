@@ -1,0 +1,7 @@
+# Copy to google-ads.yaml (gitignored) and fill in. Cloud routines use GOOGLE_ADS_* env vars instead (SETUP.md).
+developer_token: INSERT_DEVELOPER_TOKEN
+client_id: INSERT_OAUTH_CLIENT_ID
+client_secret: INSERT_OAUTH_CLIENT_SECRET
+refresh_token: INSERT_REFRESH_TOKEN  # from: uv run scripts/get_refresh_token.py client_secret.json
+login_customer_id: INSERT_MANAGER_ACCOUNT_ID  # 10 digits, no dashes (adgrad.yaml's login_customer_id overrides it)
+use_proto_plus: True

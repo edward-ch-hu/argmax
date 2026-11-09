@@ -1,0 +1,20 @@
+{
+ "about": "Example ad library for the fictional Acme Analytics. Claims are exact short quotes from the website (website.base_url + page); assets are headlines (max 30 wide) and descriptions (max 90 wide) that cite claim ids. CJK full-width characters count 2. Copy to docs/ad_library.json and replace everything with quotes from your own site, in a session with the owner. Checked by scripts/claims_check.py.",
+ "claims": [
+  {"id": "en-analytics-realtime", "locale": "en", "page": "/en/analytics/", "quote": "Real-time visitor analytics", "topic": "analytics"},
+  {"id": "en-analytics-trial", "locale": "en", "page": "/en/analytics/", "quote": "14-day free trial, no card required", "topic": "analytics"},
+  {"id": "en-analytics-cookieless", "locale": "en", "page": "/en/analytics/", "quote": "Cookieless tracking", "topic": "analytics"},
+  {"id": "en-dashboards-dragdrop", "locale": "en", "page": "/en/dashboards/", "quote": "Drag-and-drop dashboards", "topic": "dashboards"},
+  {"id": "en-reporting-scheduled", "locale": "en", "page": "/en/reporting/", "quote": "Scheduled PDF reports", "topic": "reporting"}
+ ],
+ "assets": [
+  {"id": "en-an-h01", "locale": "en", "type": "headline", "text": "Real-Time Visitor Analytics", "claim_ids": ["en-analytics-realtime"], "topic": "analytics", "source": "library"},
+  {"id": "en-an-h02", "locale": "en", "type": "headline", "text": "14-Day Free Trial, No Card", "claim_ids": ["en-analytics-trial"], "topic": "analytics", "source": "library"},
+  {"id": "en-an-h03", "locale": "en", "type": "headline", "text": "Cookieless Tracking", "claim_ids": ["en-analytics-cookieless"], "topic": "analytics", "source": "library"},
+  {"id": "en-an-h04", "locale": "en", "type": "headline", "text": "Acme Analytics", "claim_ids": [], "topic": "analytics", "source": "live"},
+  {"id": "en-an-d01", "locale": "en", "type": "description", "text": "See who visits your site in real time. Start a 14-day free trial, no card required.", "claim_ids": ["en-analytics-realtime", "en-analytics-trial"], "topic": "analytics", "source": "library"},
+  {"id": "en-an-d02", "locale": "en", "type": "description", "text": "Cookieless tracking that respects privacy. Real-time visitor analytics in one place.", "claim_ids": ["en-analytics-cookieless", "en-analytics-realtime"], "topic": "analytics", "source": "library"},
+  {"id": "en-db-h01", "locale": "en", "type": "headline", "text": "Drag-and-Drop Dashboards", "claim_ids": ["en-dashboards-dragdrop"], "topic": "dashboards", "source": "library"},
+  {"id": "en-rp-h01", "locale": "en", "type": "headline", "text": "Scheduled PDF Reports", "claim_ids": ["en-reporting-scheduled"], "topic": "reporting", "source": "library"}
+ ]
+}

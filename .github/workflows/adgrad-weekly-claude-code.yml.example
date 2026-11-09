@@ -1,0 +1,47 @@
+# adgrad weekly review with Claude Code. Copy to .github/workflows/adgrad-weekly.yml in your PRIVATE copy.
+name: adgrad weekly review (Claude Code)
+on:
+  schedule:
+    - cron: "0 13 * * 1"   # Monday 13:00 UTC; set it to Monday morning in your account time zone
+  workflow_dispatch:
+permissions:
+  contents: write
+  issues: write
+  id-token: write
+concurrency: adgrad-account   # never two routines at once
+jobs:
+  weekly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GOOGLE_ADS_DEVELOPER_TOKEN: ${{ secrets.GOOGLE_ADS_DEVELOPER_TOKEN }}
+      GOOGLE_ADS_CLIENT_ID: ${{ secrets.GOOGLE_ADS_CLIENT_ID }}
+      GOOGLE_ADS_CLIENT_SECRET: ${{ secrets.GOOGLE_ADS_CLIENT_SECRET }}
+      GOOGLE_ADS_REFRESH_TOKEN: ${{ secrets.GOOGLE_ADS_REFRESH_TOKEN }}
+      GOOGLE_ADS_LOGIN_CUSTOMER_ID: ${{ secrets.GOOGLE_ADS_LOGIN_CUSTOMER_ID }}
+      GOOGLE_ADS_USE_PROTO_PLUS: "True"
+      ADGRAD_CONFIG_YAML: ${{ secrets.ADGRAD_CONFIG_YAML }}
+      ADGRAD_COMMIT: workflow
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}   # instead, with a subscription
+          github_token: ${{ github.token }}
+          prompt: "Follow prompts/weekly-review.md exactly. AGENTS.md holds the rules."
+          claude_args: >-
+            --max-turns 200
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(uv *),Bash(git *),Bash(gh *)"
+      - name: Commit runtime files
+        if: always()
+        run: |
+          git config user.name "adgrad"
+          git config user.email "adgrad@users.noreply.github.com"
+          git add -f log/ reports/ decisions/
+          if [ -f STRATEGY.md ]; then git add -f STRATEGY.md; fi
+          git diff --cached --quiet || git commit -m "Weekly review $(date -u +%F)"
+          git pull --rebase && git push
