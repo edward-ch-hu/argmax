@@ -1,7 +1,9 @@
 You run the argmax monthly review of the Google Ads account configured in `argmax.yaml`. It is read-only: it never
 changes the account. It runs on the 1st (account time zone) and reports the month that just ended. This repo (the
 owner's private copy) is checked out in your working directory. For every tracker action, read
-`trackers/<tracker.backend>.md` for how.
+`trackers/<tracker.backend>.md` for how. Write the log, the report and decisions in `business.report_language`
+(AGENTS.md "Reporting" lists the fixed English parts) and the client update in `report.client_update.language`.
+Success means `business.primary_kpi` toward `business.goal` (in the owner's words: `business.goal_description`).
 
 In CI: if the environment variable `ARGMAX_COMMIT` is `workflow`, skip every git commit, pull and push step: the
 workflow commits the runtime files after you finish. Everything else stays the same.
@@ -14,10 +16,10 @@ workflow commits the runtime files after you finish. Everything else stays the s
    (from reports/changes.jsonl) and `month` (this vs last month per campaign, spend per topic, CRM funnel per
    topic, ref matches). If it prints `NOTIFY NO_BASELINE <month>`, say so in the log and treat `revisions` as not
    checked. With `crm_source: none`, the report has spend and the change audit's spend side only: say so.
-3. Read AGENTS.md, STRATEGY.md, this month's files in log/, reports/ad_tests.json, the reports/daily/week-*.json
-   files covering the month, the comments on the last 2 weekly reports and the last monthly report, and every open
-   decision with its comments. Resolve decisions only for things this routine can do (it never changes the
-   account); leave the rest for the weekly.
+3. Read AGENTS.md, the business profile (`business:` in argmax.yaml), STRATEGY.md, this month's files in log/,
+   reports/ad_tests.json, the reports/daily/week-*.json files covering the month, the comments on the last 2 weekly
+   reports and the last monthly report, and every open decision with its comments. Resolve decisions only for things
+   this routine can do (it never changes the account); leave the rest for the weekly.
 4. Write `log/<YYYY-MM-DD>-monthly.md` (date = run date) with this template:
    ```
    # <YYYY-MM> monthly review
@@ -32,13 +34,15 @@ workflow commits the runtime files after you finish. Everything else stays the s
    ## Open proposals
    ## Client update (external)
    ```
-   - Results: every `history[].line` as-is, oldest first. Then one note line: which months were revised and why,
-     that "at least" means the month still has open leads that could win, and that ROI = first-month deal value x
-     `deal_value_fx` / spend (not lifetime return). If `crm_stale`, say the CRM has not been updated since its last
-     entry, so the marked months may still change. List any `warnings` (date and fingerprint only).
+   - Results: every `history[].line` as-is, oldest first. Then one note line: which months were revised and why, that
+     "at least" means the month still has open leads that could win, and that ROI = first-month deal value (in
+     `business.deal_currency`) x `deal_value_fx` / spend (in the account currency; not lifetime return). If
+     `crm_stale`, say the CRM has not been updated since its last entry, so the marked months may still change. List
+     any `warnings` (date and fingerprint only).
    - Data: per campaign spend, clicks, impressions, conversions (lead signals and noise signals apart).
-   - Observations: 3 to 5, backed by numbers. Always include spend per topic vs CRM leads and wins per topic. Judge
-     topics only on `rolling_90d_by_topic` and STRATEGY.md's Evidence rules (never month vs month, noise never).
+   - Observations: 3 to 5, backed by numbers, judged against `business.primary_kpi`. Always include spend per topic
+     vs CRM leads and wins per topic. Judge topics only on `rolling_90d_by_topic` and STRATEGY.md's Evidence rules
+     (never month vs month, noise never).
    - Changes made this month: summarised from this month's weekly logs.
    - Did past changes work?: from `change_audit`, with its note that before/after counts around one change are noisy.
    - Ad tests: each test concluded or failed this month (group, hypothesis, days, impressions, CTR and lead signals
@@ -51,7 +55,9 @@ workflow commits the runtime files after you finish. Everything else stays the s
      and the topic spend targets set or updated from `rolling_90d_by_topic`. While no set is approved, propose (or
      keep open) the first set as "Needs yes". Once approved, an update where every topic moves 10 percentage points
      or less and the shares sum to 100 is "Unless you say no: Topic spend targets <new> (was <old>)"; a bigger move
-     is "Needs yes". Propose an update only when the 90-day table supports it.
+     is "Needs yes". Propose an update only when the 90-day table supports it. If the month's data says the goal or
+     KPI no longer fits (e.g. every win came through something the KPI does not count), propose a business profile
+     change as "Needs yes".
    - Open proposals: one line per open decision, including the ones this run creates in step 7.
    - Client update (external), when `report.client_update.enabled`: a message in `report.client_update.language`
      the owner can paste to a client or stakeholder as-is, about 150 to 300 words including the numbers:

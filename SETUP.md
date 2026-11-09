@@ -33,12 +33,22 @@ uv run scripts/accounts.py                        # the accounts you can reach, 
 cp argmax.example.yaml argmax.yaml                # or: uv run scripts/init.py (asks), or --answers <file>
 ```
 Set at least: `account` (customer_id, login_customer_id, currency, timezone: take them from `accounts.py`),
-`limits.daily_budget_cap`, `topics`, `winning_topics`, `ad_group_topics`, `conversions.lead_signals` and
-`noise_signals`, `website.base_url` (or `ad_tests.enabled: false`), `crm`, `tracker.backend`. Every field is
-commented in `argmax.example.yaml`. Then:
+`business` (the profile below), `limits.daily_budget_cap`, `topics`, `winning_topics`, `ad_group_topics`,
+`conversions.lead_signals` and `noise_signals`, `website.base_url` (or `ad_tests.enabled: false`), `crm`,
+`tracker.backend`. Every field is commented in `argmax.example.yaml`. Then:
 ```bash
 uv run scripts/check_connection.py                # config OK, account reachable, currency and time zone match
 ```
+The business profile (`business:`) is what every report and decision is shaped by:
+- `goal` (leads, sales, roas, calls or awareness) and a one-line `goal_description`; it must fit the strategy's
+  "Fits goals" line (`doctor.py` warns otherwise).
+- `primary_kpi` (what success is counted in) and `kpi_conversions` (the `conversions.lead_signals` that stand for it;
+  empty means all of them).
+- `markets`: name, countries, ad `language` (a site locale code) and an optional `campaign_prefix`. They are the one
+  source for `website.locales` and `ad_tests.campaign_locales`: leave those out and they are derived.
+- `report_language` (default English): reports, decisions and, unless set apart, the client update.
+- `deal_currency` (default the account currency). When the CRM's deal values are in another currency, set
+  `crm.deal_value_fx` to how much one unit of it is in the account currency (ROI = deal value x fx / spend).
 Config sources, first match wins: `ARGMAX_CONFIG_YAML` (the whole YAML as text), `ARGMAX_CONFIG` (a path),
 `argmax.yaml`. `ARGMAX_CUSTOMER_ID` and `ARGMAX_LOGIN_CUSTOMER_ID` override the ids. `argmax.yaml` holds no
 secrets: in your private copy, commit it with `git add -f argmax.yaml` so cloud runs find it.

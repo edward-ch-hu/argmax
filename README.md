@@ -92,9 +92,9 @@ flowchart LR
 1. **Make your private copy.** Paste the one-message prompt at the top into your agent, or by hand:
    `gh repo create my-argmax --private --template edward-ch-hu/argmax --clone` (details in `BOOTSTRAP.md`).
 2. **Open it in your agent and say "onboard me".** `prompts/onboarding.md` walks you through prerequisites, the
-   Google Ads API, picking the account, your tracker, your CRM, your strategy, the guardrails, a first read-only
-   run, and scheduling. It saves progress, so "continue onboarding" resumes (handy while Google approves your
-   developer token).
+   Google Ads API, picking the account, your business profile (goal, KPI, markets, report language, deal currency),
+   your tracker, your CRM, your strategy, the guardrails, a first read-only run, and scheduling. It saves progress,
+   so "continue onboarding" resumes (handy while Google approves your developer token).
 3. **Read your first weekly report**, answer decisions with "yes", "no" or "reverse".
 
 Prefer doing it by hand? `SETUP.md` is the full manual reference. `uv run scripts/doctor.py` tells you what is
@@ -114,10 +114,12 @@ still missing at any point.
 
 ## Pick your strategy
 
-`STRATEGY.md` is the agent's standing brief: goal, what counts as success, evidence rules, topic spend targets,
-phases. Start from a template in [strategies/](strategies/README.md): B2B lead gen, e-commerce ROAS, local
-services, new-account discovery, brand defense. Or let `prompts/strategy-interview.md` interview you, or port your
-existing notes.
+The business profile (`business:` in `argmax.yaml`) says what you want: the goal (leads, sales, ROAS, calls or
+awareness), the KPI that counts, your markets and their ad languages, and the language you read reports in.
+`STRATEGY.md` is the agent's standing brief on how to get there: evidence rules, topic spend targets, phases.
+Start from a template in [strategies/](strategies/README.md) that fits your goal: B2B lead gen, e-commerce ROAS,
+local services, new-account discovery, brand defense. Or let `prompts/strategy-interview.md` interview you, or port
+your existing notes.
 
 ## Safety notes
 

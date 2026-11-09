@@ -2,17 +2,23 @@
 
 `STRATEGY.md` is the agent's standing brief: what counts as success, how much evidence a decision needs, where
 spend should go, and which phase the account is in. Every routine reads it before deciding anything.
-`argmax.yaml` sets how fast the agent may move (caps and limits); `STRATEGY.md` sets where it is going.
+`argmax.yaml` sets how fast the agent may move (caps and limits) and holds the business profile (`business:`: goal,
+primary KPI, markets, report language, deal currency); `STRATEGY.md` sets how to get there and points at the profile
+instead of restating it.
 
 ## Pick one
 
-| Template | For | Judged on |
-|---|---|---|
-| [b2b-lead-gen.md](b2b-lead-gen.md) | sales-led businesses with a CRM | CRM leads and wins per topic |
-| [ecommerce-roas.md](ecommerce-roas.md) | online stores | conversion value per spend per category |
-| [local-services.md](local-services.md) | local businesses, calls and forms | booked jobs, cost per job |
-| [new-account-discovery.md](new-account-discovery.md) | new or messy accounts | junk cut first, then first deals |
-| [brand-defense.md](brand-defense.md) | brands bid on by others | brand coverage, non-brand reported apart |
+| Template | For | Fits `business.goal` | Judged on |
+|---|---|---|---|
+| [b2b-lead-gen.md](b2b-lead-gen.md) | sales-led businesses with a CRM | leads | CRM leads and wins per topic |
+| [ecommerce-roas.md](ecommerce-roas.md) | online stores | roas, sales | conversion value per spend per category |
+| [local-services.md](local-services.md) | local businesses, calls and forms | calls, leads | booked jobs, cost per job |
+| [new-account-discovery.md](new-account-discovery.md) | new or messy accounts | leads, sales, roas, calls | junk cut first, then first deals |
+| [brand-defense.md](brand-defense.md) | brands bid on by others | any (combine) | brand coverage, non-brand reported apart |
+
+Each template has a `Fits goals: ...` line. `uv run scripts/doctor.py` warns ("goal fit") when `business.goal` is
+not on it, e.g. goal `roas` with b2b-lead-gen. There is no awareness-only template yet: start from brand-defense or
+new-account-discovery and change its "Fits goals" line once the strategy really is about awareness.
 
 ```bash
 cp strategies/b2b-lead-gen.md STRATEGY.md   # or let `uv run scripts/init.py` copy one
@@ -26,6 +32,7 @@ Combining is fine: e.g. brand-defense rules added to b2b-lead-gen under "Agent a
 
 The routines and `strategy_check.py` rely on these level-2 headings (any order, extra sections allowed):
 Goal, Success signal, Evidence rules, Topic spend targets, Phases, Agent autonomy overrides, Change log.
+Keep the `Fits goals: ...` line (goals from leads, sales, roas, calls, awareness, or `any`) above the first section.
 Topic spend targets is a table `| Topic | Target share |` with every share a number (summing to 100) or all TBD.
 
 ## Port an existing strategy

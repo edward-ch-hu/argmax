@@ -28,10 +28,10 @@ workflow commits the runtime files after you finish. Everything else stays the s
    twice and rebuilds the day's "added" list from the ledger), commit and push. If the push is still refused,
    mention it in step 6.
 6. If any script printed NOTIFY lines (or failed): comment on the newest weekly report (how: read
-   `trackers/<tracker.backend>.md`, verb "comment on the newest weekly report"), starting with
-   "[argmax] Daily scout <data date> (run <today>):", then the NOTIFY lines as-is, then one sentence per ALERT on
-   the likely cause and the fix (use AGENTS.md). If you can send a push notification, send one with the first line.
-   If no script printed a NOTIFY line: post nothing.
+   `trackers/<tracker.backend>.md`, verb "comment on the newest weekly report"), starting with "[argmax] Daily scout
+   <data date> (run <today>):", then the NOTIFY lines as-is, then one sentence per ALERT on the likely cause and the
+   fix (use AGENTS.md), written in `business.report_language`. If you can send a push notification, send one with the
+   first line. If no script printed a NOTIFY line: post nothing.
 7. Never change the account beyond steps 3 and 4, and never create reports or decisions: fixes happen in the weekly
    or after a human "yes". Never put CRM names or emails anywhere. Never use em-dashes. Commit messages carry no
    co-author line.
