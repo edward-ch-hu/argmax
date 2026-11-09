@@ -191,6 +191,9 @@ def main():
     steps = [g for g in groups if g["action"] in ("raise", "lower")]
     cur = ads_client.currency()
 
+    entries = [ledger.entry("ad_group", f"{g['campaign']} / {g['ad_group']}", "cpc", g["bid"], g["new_bid"],
+                            f"daily step: {g['why']}", ad_group_topic(g["ad_group"]),
+                            "rank-lost impression share moves toward the band", routine="daily") for g in steps]
     ops = []
     for g in steps:
         op = client.get_type("AdGroupOperation")
@@ -200,8 +203,9 @@ def main():
         ops.append(op)
     if ops:
         try:
-            client.get_service("AdGroupService").mutate_ad_groups(
-                request={"customer_id": ads_client.customer_id(), "operations": ops, "validate_only": validate_only})
+            with ledger.pending(entries, not validate_only):
+                client.get_service("AdGroupService").mutate_ad_groups(
+                    request={"customer_id": ads_client.customer_id(), "operations": ops, "validate_only": validate_only})
         except GoogleAdsException as ex:
             sys.exit("FAIL " + "; ".join(e.message for e in ex.failure.errors))
 
@@ -210,10 +214,6 @@ def main():
         print(f"{label} {g['campaign']} / {g['ad_group']}: {cur} {g['bid']:.2f} -> {g['new_bid']:.2f} ({g['why']})")
 
     if not validate_only:
-        ledger.append([ledger.entry("ad_group", f"{g['campaign']} / {g['ad_group']}", "cpc", g["bid"], g["new_bid"],
-                                    f"daily step: {g['why']}", ad_group_topic(g["ad_group"]),
-                                    "rank-lost impression share moves toward the band", routine="daily")
-                       for g in steps])
         path = week_path(day)
         week = read(path)
         if week and day in week["days"]:

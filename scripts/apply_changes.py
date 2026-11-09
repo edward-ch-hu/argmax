@@ -22,7 +22,7 @@ change is appended to reports/changes.jsonl (ledger.py) for the monthly change a
 
 Refuses the whole file (FAIL lines, exit 1, nothing changed) when:
 - the total daily budget across enabled campaigns after the change is over limits.daily_budget_cap (status changes
-  in the same file count; paused campaigns don't)
+  in the same file count; paused campaigns don't; a budget shared by several campaigns counts once)
 - an ad group bid is more than limits.weekly_bid_change away from that group's bid at the start of the week
   (Monday 00:00 in the account time zone), or outside limits.bid_floor to limits.bid_ceiling
 - a bid is set on a winning-topic Search group still inside its daily_bids.py stepping window
@@ -199,12 +199,10 @@ def evaluate(changes, camps, groups, keywords, bid_history, firsts, today, cfg=N
             fails.append(f"status {s}: level must be campaign, ad_group or keyword")
 
     def total(after):
-        out = 0.0
-        for c in camps:
-            status = new_status.get(c["resource"], c["status"]) if after else c["status"]
-            if status == "ENABLED":
-                out += new_budget.get(c["resource"], c["budget"]) if after else c["budget"]
-        return round(out, 2)
+        """Across enabled campaigns; a shared budget counts once (its amount cannot change here)."""
+        return ads_client.budget_total(
+            (c["budget_resource"], new_budget.get(c["resource"], c["budget"]) if after else c["budget"])
+            for c in camps if (new_status.get(c["resource"], c["status"]) if after else c["status"]) == "ENABLED")
 
     totals = (total(False), total(True))
     if totals[1] > lim.daily_budget_cap + 1e-9:
@@ -263,8 +261,9 @@ def main():
     ops, labels = operations(client, plan)
     print("VALIDATE ONLY (no changes)" if validate_only else "APPLYING CHANGES")
     try:
-        ga.mutate(request={"customer_id": ads_client.customer_id(), "mutate_operations": ops,
-                           "validate_only": validate_only})
+        with ledger.pending([e for p in plan.values() for e in p["ledger"]], not validate_only):
+            ga.mutate(request={"customer_id": ads_client.customer_id(), "mutate_operations": ops,
+                               "validate_only": validate_only})
     except GoogleAdsException as ex:
         for e in ex.failure.errors:
             index = next((p.index for p in e.location.field_path_elements if p.field_name == "mutate_operations"), None)
@@ -274,8 +273,6 @@ def main():
         print(f"{'VALID' if validate_only else 'DONE '}  {label}")
     print(f"total daily budget across enabled campaigns: {cfg.account.currency} {before:.2f} -> {after:.2f} "
           f"(cap {cfg.limits.daily_budget_cap:g})")
-    if not validate_only:
-        ledger.append([e for p in plan.values() for e in p["ledger"]])
 
 
 if __name__ == "__main__":

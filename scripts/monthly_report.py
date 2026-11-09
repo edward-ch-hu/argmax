@@ -19,6 +19,8 @@ worded for the client update. change_audit checks the changes in reports/changes
 - judged: changes whose 6-week lead window has closed and whose 10-week win window is still open or closed
   this month: the topic's CRM leads, ref-matched leads and wins before vs after (same length each side)
 - not_yet_observable: changes whose lead window is still open
+- unconfirmed: pending ledger lines with no applied or failed line (a run stopped mid-mutate); never judged, listed
+  so the weekly can check the account's change history
 With crm.source none the report has spend, campaigns, topics and the change audit's spend side only.
 
 Usage: uv run scripts/monthly_report.py [--month YYYY-MM]
@@ -192,9 +194,13 @@ def change_audit(ga, client, crm_rows, month, today, entries=None):
         return {"leads": len(leads), "ref_matched_leads": len(matched), "wins": sum(r["stage"] == "win" for r in leads)}
 
     groups = {}
-    for e in ledger.read() if entries is None else entries:
+    all_lines = ledger.lines() if entries is None else entries
+    for e in ledger.read(entries=all_lines):
         groups.setdefault((e["date"], e["topic"]), []).append(e)
-    out = {"note": NOISE_NOTE, "this_month": [], "judged": [], "not_yet_observable": []}
+    out = {"note": NOISE_NOTE, "this_month": [], "judged": [], "not_yet_observable": [],
+           # a mutate was started but its outcome never logged: not counted above; check the account's change history
+           "unconfirmed": [{k: e.get(k) for k in ("date", "routine", "level", "entity", "field", "before", "after")}
+                           for e in ledger.unconfirmed(entries=all_lines) if e["date"] <= str(last)]}
     for (day, topic), group in sorted(groups.items()):
         if day > str(last):
             continue

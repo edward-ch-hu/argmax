@@ -52,6 +52,12 @@ def micros(amount, currency_code=None):
     return round(amount * 1_000_000 / unit) * unit
 
 
+def budget_total(budgets):
+    """The total daily budget from (budget resource name, amount) pairs of the enabled campaigns: a shared budget
+    counts once, however many campaigns use it. Pure."""
+    return round(sum(dict(budgets).values()), 2)
+
+
 def quoted(names):
     """A GAQL IN list of string literals: ('A', 'B')."""
     return "(" + ", ".join("'" + n.replace("\\", "\\\\").replace("'", "\\'") + "'" for n in names) + ")"

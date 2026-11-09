@@ -42,14 +42,12 @@ def check(client, day):
 
     campaigns = rows(ga, """SELECT campaign.name, campaign.advertising_channel_type, campaign.bidding_strategy_type,
         campaign.primary_status, campaign.network_settings.target_content_network,
-        campaign.network_settings.target_partner_search_network, campaign_budget.amount_micros
-        FROM campaign WHERE campaign.status = 'ENABLED'""")
+        campaign.network_settings.target_partner_search_network, campaign_budget.resource_name,
+        campaign_budget.amount_micros FROM campaign WHERE campaign.status = 'ENABLED'""")
     budget = {}
-    total = 0.0
     for r in campaigns:
         c = r.campaign
         budget[c.name] = r.campaign_budget.amount_micros / 1e6
-        total += budget[c.name]
         if g.expected_bidding and c.bidding_strategy_type.name != g.expected_bidding:
             alerts.append(f"{c.name}: bidding is {c.bidding_strategy_type.name}, expected {g.expected_bidding}")
         if c.primary_status.name not in ("ELIGIBLE", "LIMITED"):
@@ -59,6 +57,8 @@ def check(client, day):
                 alerts.append(f"{c.name}: Display Expansion is ON")
             if c.network_settings.target_partner_search_network:
                 alerts.append(f"{c.name}: Search Partners is ON")
+    total = ads_client.budget_total((r.campaign_budget.resource_name, r.campaign_budget.amount_micros / 1e6)
+                                    for r in campaigns)  # a shared budget counts once
     alerts += budget_alerts(total, cfg)
 
     stats = rows(ga, f"""SELECT campaign.name, campaign.advertising_channel_type, segments.ad_network_type,
