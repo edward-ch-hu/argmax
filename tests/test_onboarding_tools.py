@@ -56,6 +56,44 @@ def test_init_build_business_profile():
     assert "crm.deal_value_fx: needed" in str(e.value)
 
 
+def test_init_derives_money_limits_from_the_account():
+    d = init.derive(2.0, 3.5, 158.4, "USD")
+    assert d == {"negatives.min_cost": 6.0, "negatives.held_notify_cost": 10.0,
+                 "match_type_review.min_off_intent_spend": 10.0, "keyword_review.min_pause_cost": 40.0,
+                 "limits.bid_floor": 0.5, "limits.bid_ceiling": 10.0, "limits.daily_budget_cap": 159}
+    jpy = init.derive(85.0, None, 12000.0, "JPY")  # zero-decimal, no bids set (e.g. new groups): 3 x CPC
+    assert jpy["limits.bid_floor"] == 21 and jpy["limits.bid_ceiling"] == 255 and jpy["negatives.min_cost"] == 255
+    assert jpy["limits.daily_budget_cap"] == 12000
+    assert init.derive(None, None, 80.0, "EUR") == {"limits.daily_budget_cap": 80}  # no clicks: only the cap
+    assert init.amount(0.001, "USD") == 0.01 and init.amount(12.4, "USD") == 12.0
+
+
+def test_init_answers_win_over_derived_values_and_validate():
+    answers = dict(ANSWERS, negatives={"min_cost": 4.0})
+    c = init.build(init.with_derived(answers, init.derive(85.0, 120.0, 9000.0, "EUR")), EXAMPLE)
+    cfg = init.validate(c)
+    assert cfg.negatives.min_cost == 4.0 and cfg.limits.daily_budget_cap == 80  # both given in the answers
+    assert cfg.limits.bid_ceiling == 360.0 and cfg.keyword_review.min_pause_cost == 1700.0
+    text = init.read_back(c, 85.0, 9000.0)
+    assert "Limits in EUR" in text and "EUR 80" in text and "EUR 21 and EUR 360" in text
+    assert "evidence floor" in text and "EUR 42,500" in text
+
+
+def test_init_derive_without_clicks_asks_for_a_cpc(monkeypatch, tmp_path, capsys):
+    path = tmp_path / "answers.yaml"
+    path.write_text(yaml.safe_dump(ANSWERS))
+    monkeypatch.chdir(ROOT)
+    monkeypatch.setattr(init, "account_numbers", lambda cid, login=None: (None, None, 75.0))
+    monkeypatch.setattr("sys.argv", ["init.py", "--answers", str(path), "--derive", "--dry-run"])
+    with pytest.raises(SystemExit) as e:
+        init.main()
+    assert "--cpc" in str(e.value) and "no Search clicks" in str(e.value)
+    monkeypatch.setattr("sys.argv", ["init.py", "--answers", str(path), "--cpc", "1.5", "--dry-run"])
+    init.main()
+    out = capsys.readouterr().out
+    assert "min_cost: 4.5" in out and "30-day average Search CPC of EUR 1.50" in out and "WARN" not in out
+
+
 def test_init_build_invalid_answers_fail():
     with pytest.raises(config.ConfigError):
         init.validate(init.build(dict(ANSWERS, winning_topics=["nope"]), EXAMPLE))

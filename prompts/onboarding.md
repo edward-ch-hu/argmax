@@ -114,13 +114,14 @@ opens directly gets an empty one. Write a first answers file in `.argmax/answers
 ```yaml
 account: {customer_id: "<id>", login_customer_id: "<manager id, or empty>", name: "<name>", currency: <CUR>, timezone: <Area/City>}
 api: {access_level: <the level from step c9>}
-limits: {daily_budget_cap: <current total daily budget of enabled campaigns, rounded up>}
 topics: [general]          # placeholder until step h
 conversions: {lead_signals: [<a conversion action name>]}
 ```
-(Read the current budgets and conversion action names with `uv run scripts/gaql.py` once `argmax.yaml` exists, or
-ask; step i confirms the cap.) Run `uv run scripts/init.py --answers .argmax/answers.yaml --dry-run`, show the
-result, and on a yes `uv run scripts/init.py --answers .argmax/answers.yaml` (add `--force` when rewriting). Then
+Leave every money limit (budget cap, bid floor and ceiling, negative and pause thresholds) out for now: step i sizes
+them all from the account in one pass. init prints a WARN that they keep the example's values until then; say so in
+one line. (Read conversion action names with `uv run scripts/gaql.py` once `argmax.yaml` exists, or ask.) Run
+`uv run scripts/init.py --answers .argmax/answers.yaml --dry-run`, show the result, and on a yes
+`uv run scripts/init.py --answers .argmax/answers.yaml` (add `--force` when rewriting). Then
 `uv run scripts/check_connection.py`. Keep `.argmax/answers.yaml` up to date in later steps and re-run init with
 `--force`; it is the single source the config is built from during onboarding.
 
@@ -222,9 +223,22 @@ queries are in the interview prompt), propose topics (substrings and whole words
 scripts/strategy_check.py` and `uv run scripts/doctor.py` (the "goal fit" line must be OK). Record `strategy done`.
 
 ## i. guardrails
-Confirm in plain language, defaulting to conservative values, and write them into the answers:
-- "The agent may never let the total daily budget across campaigns go above <cap> <currency>." (`limits.daily_budget_cap`; default: today's total)
-- "It may move any ad group's bid by at most <20>% a week, never below <floor> or above <ceiling>." (`limits.*`; default ceiling: 2x today's highest bid)
+One pass, now that `check_connection.py` works. Every money limit is in the account currency, so size them from the
+account instead of keeping the example's USD-sized values:
+1. `uv run scripts/init.py --answers .argmax/answers.yaml --derive --dry-run`. It reads the 30-day average Search
+   CPC, the highest current bid and today's enabled budgets, and derives: the budget cap (today's total, rounded up),
+   bid floor (0.25 x CPC) and ceiling (3 x the highest bid, or 3 x CPC), the junk-term threshold (3 x CPC over at
+   least 3 clicks), the held-term notice (5 x CPC), the pause threshold (20 x CPC), the match type threshold (5 x CPC)
+   and the STRATEGY.md evidence floor (500 x CPC). Values already in the answers win.
+2. No Search clicks in 30 days (a new account): it stops and asks for `--cpc <amount>`. Ask the owner what a click
+   costs them (Keyword Planner's top-of-page bid, or another account), then run it with `--cpc`.
+3. Read every limit back exactly as init prints it ("Limits in <CUR> ..."), in plain words, one line each, and ask
+   for a yes or a change. Copy the confirmed values into `.argmax/answers.yaml` under their keys, so later re-runs
+   keep them, then run init with `--force` (no `--derive` needed again).
+4. Put the evidence floor amount into STRATEGY.md's Evidence rules (replace the "500 x the account's average Search
+   CPC" wording with the amount and currency).
+Then confirm the rest in plain language, defaulting to conservative values, and write them into the answers:
+- "It may move any ad group's bid by at most <20>% a week." (`limits.weekly_bid_change`)
 - "For the topics that close deals, it may step bids daily by <10>% for <14> days to find the right visibility." (`stepping.*`)
 - "It may block up to <10> junk search terms a day." (`negatives.max_per_day`)
 - "It may start <1> ad copy test a week, only with claims quoted from your site." (`ad_tests.*`; off without `website.base_url`)

@@ -21,8 +21,9 @@ that turn into paid plans, at the same total budget".)
 - Noise, never used for any judgment: `conversions.noise_signals` (e.g. Chat Widget Open). Shown in tables only.
 
 ## Evidence rules
-- No topic or campaign is defunded on outcome data below a floor: at least 1,500 (account currency) spent over at
-  least 60 days with 0 CRM or ref-matched leads. Below the floor, cut waste on spend-side data only (off-intent
+- No topic or campaign is defunded on outcome data below a floor: spend of at least 500 x the account's average
+  Search CPC (onboarding writes the amount here, from `init.py --derive`; about 1,500 at a CPC of 3) over at least 60
+  days with 0 CRM or ref-matched leads. Below the floor, cut waste on spend-side data only (off-intent
   search terms, CPC, impressions lost to budget).
 - Topics are judged on the rolling 90-day table (`uv run scripts/topic_table.py`: spend, leads, ref-matched leads,
   wins, trial_to_win), never month against month.

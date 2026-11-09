@@ -55,7 +55,12 @@ and agent transcripts. For cloud runs, copy it from that file into the `GOOGLE_A
 ## 3. argmax.yaml
 ```bash
 cp argmax.example.yaml argmax.yaml                # or: uv run scripts/init.py (asks), or --answers <file>
+uv run scripts/init.py --answers <file> --derive --dry-run   # sizes the money limits from your account
 ```
+Money limits (`limits.daily_budget_cap`, `bid_floor`, `bid_ceiling`, `negatives.min_cost`, `held_notify_cost`,
+`keyword_review.min_pause_cost`, `match_type_review.min_off_intent_spend`) are in the account currency. The example's
+values suit a USD account with a CPC of about 2; `init.py --derive` sizes them from your 30-day average Search CPC,
+highest bid and today's budgets (the multiples are in `scripts/init.py`), or `--cpc <amount>` from a CPC you give.
 Set at least: `account` (customer_id, currency, timezone from `accounts.py`; login_customer_id only for an
 account listed "via manager"), `api.access_level` (from the Overview page),
 `business` (the profile below), `limits.daily_budget_cap`, `topics`, `winning_topics`, `ad_group_topics`,

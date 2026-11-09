@@ -27,6 +27,8 @@ in `business.report_language` when it is set.
    - Constraints: monthly or daily budget ceiling, regions, hours, things the agent must never do, things it may do
      alone. Budget and bid numbers belong in `argmax.yaml` limits; rules belong under "Agent autonomy overrides".
    - Their sales cycle length (it sets the evidence windows: a 90-day table for a long B2B cycle, 30 days for a shop).
+     Money floors in Evidence rules are in the account currency: write them relative to the account's CPC, or as
+     the amount `uv run scripts/init.py --derive --dry-run` prints ("evidence floor"), never as a USD-sized number.
    - Where the account is now: new, messy, or running well (it sets the starting phase).
 3. Pick the closest template that fits `business.goal` (its "Fits goals" line; `strategies/README.md` has the
    table) and adapt it. Keep the `Fits goals: ...` line, true to the goal, and every required section, exactly these
