@@ -171,6 +171,12 @@ at a time, each with a suggested default from what you saw. Never ask the owner 
    each deal value by a fixed rate: how much 1 <deal currency> is in <account currency> (deals in USD, account in
    SGD: about 1.29). Monthly ROI uses it; update it when the rate moves a lot." Suggest today's rate, let them
    confirm or round it, and put it in `crm.deal_value_fx` (it is checked once a CRM is set in step g).
+8. Bidding end state: "Should Google's automatic bidding take over one day, or should argmax keep setting bids
+   itself for good?" Explain both in one line each: smart bidding hand-off (`smart_bidding`) fits many conversions
+   a month that are clean (each one a real lead or sale), because Google learns from them; agent-run manual CPC
+   (`manual_cpc`) fits a few real deals a month or noisy conversions, where real deals are judged offline in the
+   CRM. Suggest `manual_cpc` when lead signals are under about 30 a month per campaign or a noise signal is
+   mixed in. With `manual_cpc`, `guard.expected_bidding` stays MANUAL_CPC. The strategy in step h picks the same.
 Write it into the answers, show the block, then dry-run and write as in step d:
 ```yaml
 business:
@@ -182,6 +188,7 @@ business:
     - {name: "<name>", countries: [<codes>], language: <locale>, campaign_prefix: "<prefix>"}
   report_language: <language>
   deal_currency: <CUR>
+  bidding_end_state: manual_cpc   # or smart_bidding
 crm: {deal_value_fx: <rate>}   # only when deal_currency differs from the account currency
 ```
 `uv run scripts/doctor.py` must show the business line OK. Record `business done`. The strategy in step h must
@@ -222,7 +229,8 @@ business profile, so the template must fit `business.goal` (strategies/README.md
 the topics from the live account: list ad groups and the top 50 keywords by spend with `uv run scripts/gaql.py` (the
 queries are in the interview prompt), propose topics (substrings and whole words), `winning_topics`, and an
 `ad_group_topics` map covering every enabled ad group. Update the answers, re-run init, run `uv run
-scripts/strategy_check.py` and `uv run scripts/doctor.py` (the "goal fit" line must be OK). Record `strategy done`.
+scripts/strategy_check.py` and `uv run scripts/doctor.py` (the "goal fit" and "bidding" lines must be OK). Record
+`strategy done`.
 
 ## i. guardrails
 One pass, now that `check_connection.py` works. Every money limit is in the account currency, so size them from the

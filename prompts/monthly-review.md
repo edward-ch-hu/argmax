@@ -46,6 +46,10 @@ workflow commits the runtime files after you finish. Everything else stays the s
      (never month vs month, noise never).
    - Changes made this month: summarised from this month's weekly logs.
    - Did past changes work?: from `change_audit`, with its note that before/after counts around one change are noisy.
+   - Experiments (when the config has any): each one running, judged or ended this month (reports/experiments.json
+     and reports/experiments-<date>.json, ledger lines with its id): the group, the dates, the bid levels against
+     clicks, CPC and leads, the verdict (mid-test check, kill rule, passed, ended or reversed by the owner) and what
+     it says about the group's ceiling. Put it under "Did past changes work?".
    - Ad tests: each test concluded or failed this month (group, hypothesis, days, impressions, CTR and lead signals
      per arm, z, the winner or why it failed), what the winning copy says that the loser did not, the tests still
      running. "None this month" when there were none.
@@ -58,7 +62,9 @@ workflow commits the runtime files after you finish. Everything else stays the s
      or less and the shares sum to 100 is "Unless you say no: Topic spend targets <new> (was <old>)"; a bigger move
      is "Needs yes". Propose an update only when the 90-day table supports it. If the month's data says the goal or
      KPI no longer fits (e.g. every win came through something the KPI does not count), propose a business profile
-     change as "Needs yes".
+     change as "Needs yes". With `business.bidding_end_state: manual_cpc`, never propose a bid strategy switch or a
+     Smart Bidding phase; if the data clearly argues for one (steady, clean conversion volume), propose changing the
+     bidding end state itself as "Needs yes", with the numbers.
    - Open proposals: one line per open decision, including the ones this run creates in step 7.
    - Client update (external), when `report.client_update.enabled`: a message in `report.client_update.language`
      the owner can paste to a client or stakeholder as-is, about 150 to 300 words including the numbers:

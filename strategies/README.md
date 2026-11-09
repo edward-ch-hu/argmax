@@ -22,7 +22,7 @@ new-account-discovery and change its "Fits goals" line once the strategy really 
 
 ```bash
 cp strategies/b2b-lead-gen.md STRATEGY.md   # or let `uv run scripts/init.py` copy one
-uv run scripts/strategy_check.py            # required sections present, shares sum to 100
+uv run scripts/strategy_check.py            # required sections present, shares sum to 100, bidding end state
 ```
 
 Then replace the placeholder topics (`topic_a`, `category_a`...) with the topic names from `argmax.yaml`.
@@ -32,7 +32,11 @@ Combining is fine: e.g. brand-defense rules added to b2b-lead-gen under "Agent a
 
 The routines and `strategy_check.py` rely on these level-2 headings (any order, extra sections allowed):
 Goal, Success signal, Evidence rules, Topic spend targets, Phases, Agent autonomy overrides, Change log.
-Keep the `Fits goals: ...` line (goals from leads, sales, roas, calls, awareness, or `any`) above the first section.
+Keep the `Fits goals: ...` line (goals from leads, sales, roas, calls, awareness, or `any`) above the first section,
+and the `Bidding end state: ...` line with one choice kept: "smart bidding hand-off" (high conversion volume, clean
+conversion data) or "agent-run manual CPC (permanent)" (low volume or noisy conversions, deals judged offline). It
+must match `business.bidding_end_state`; `strategy_check.py` and `doctor.py` ("bidding") check, and with manual CPC
+no routine ever proposes a bid strategy switch.
 Topic spend targets is a table `| Topic | Target share |` with every share a number (summing to 100) or all TBD.
 
 ## Port an existing strategy

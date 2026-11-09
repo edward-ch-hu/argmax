@@ -30,8 +30,13 @@ in `business.report_language` when it is set.
      Money floors in Evidence rules are in the account currency: write them relative to the account's CPC, or as
      the amount `uv run scripts/init.py --derive --dry-run` prints ("evidence floor"), never as a USD-sized number.
    - Where the account is now: new, messy, or running well (it sets the starting phase).
+   - Where bidding ends up, unless `business.bidding_end_state` already says it: a smart bidding hand-off (many
+     clean conversions a month for Google to learn from) or agent-run manual CPC for good (few real deals, or noisy
+     conversions; deals judged offline). Propose `business.bidding_end_state` alongside when it is not set.
 3. Pick the closest template that fits `business.goal` (its "Fits goals" line; `strategies/README.md` has the
-   table) and adapt it. Keep the `Fits goals: ...` line, true to the goal, and every required section, exactly these
+   table) and adapt it. Keep the `Fits goals: ...` line, true to the goal; keep one choice on the `Bidding end
+   state:` line (matching `business.bidding_end_state`) and the matching Phase 3 variant only; and every required
+   section, exactly these
    level-2 headings: Goal, Success signal, Evidence rules, Topic spend targets, Phases, Agent autonomy overrides,
    Change log. Goal and Success signal point at the profile (`business.goal`, `business.primary_kpi`) and say how
    this strategy pursues it; they do not restate the goal, the KPI, the markets or the languages.

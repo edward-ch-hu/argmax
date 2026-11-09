@@ -8,6 +8,15 @@ deal currency) says what the owner wants; this file does not restate it.
 
 Fits goals: leads
 
+Bidding end state: smart bidding hand-off | agent-run manual CPC (permanent)
+- smart bidding hand-off: the last phase hands bids to Google's Smart Bidding. Fits high conversion volume and clean
+  conversion data that Google can learn from.
+- agent-run manual CPC (permanent): bids stay Manual CPC for good, set by the routines and judged on real deals
+  offline. Fits low volume or noisy conversions.
+Keep one choice on the line above; it must match `business.bidding_end_state` in argmax.yaml (smart_bidding or
+manual_cpc; `strategy_check.py` and `doctor.py` check). With manual CPC the routines never propose a bid strategy
+switch, and a winning group capped by its bid can get a ceiling test instead (README, "Experiments").
+
 ## Goal
 The business goal lives in the profile in `argmax.yaml` (`business.goal`, `business.goal_description`); this
 section only says how this strategy pursues it: find which topics, keywords and campaigns produce real deals, then
@@ -69,10 +78,19 @@ Exit check, per campaign:
 
 Exit check: a campaign has 30+ lead signals or real CRM leads in 30 days.
 
-### Phase 3: Smart Bidding
+### Phase 3: the bidding end state (keep the variant picked above, delete the other)
+Smart bidding hand-off:
 - Upload real leads as offline conversions (by click id) so bidding learns from deals, not clicks.
 - Never optimise for a noise signal. Bid for lead signals and uploaded leads, then Target CPA at the Phase 2 CPA.
-- Keep auto-apply recommendations off; review Google's suggestions by hand.
+- Set `guard.expected_bidding` to the new strategy and `stepping.enabled: false` for those campaigns' groups.
+
+Agent-run manual CPC (permanent):
+- Bids stay Manual CPC, set by `daily_bids.py` and the weekly on CRM and ref-matched leads, never on Google's
+  conversion counts. No routine proposes switching a bid strategy.
+- A winning group that loses most impressions to rank at its bid ceiling can get a ceiling test (an experiment,
+  "Needs yes" to start) to find where extra bid stops buying clicks.
+
+Either way: keep auto-apply recommendations off; review Google's suggestions by hand.
 
 ## Agent autonomy overrides
 None: the defaults in AGENTS.md apply. Write stricter or looser rules here (still inside `argmax.yaml` limits),

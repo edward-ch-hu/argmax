@@ -7,6 +7,8 @@ Checks (the day, ENABLED campaigns; thresholds from argmax.yaml):
 - Search campaigns have Display Expansion and Search Partners off and got no Display (CONTENT) traffic
   (guard.search_networks_only)
 - the total daily budget across enabled campaigns is at or under limits.daily_budget_cap
+- while an experiment's reserve holds (experiments, reserve), the enabled campaigns other than its campaign stay at
+  or under reserve.others_max together
 - every enabled campaign uses guard.expected_bidding (skipped when null) and is eligible to serve
 - Search campaigns got Search impressions; no campaign spent over guard.overspend_multiple x its daily budget
 - any lead-signal conversion (conversions.lead_signals) is reported as news: check the CRM for a real lead
@@ -17,6 +19,7 @@ from datetime import timedelta
 
 import ads_client
 import config
+import experiments
 from ads_client import rows
 from google.ads.googleads.errors import GoogleAdsException
 
@@ -24,6 +27,21 @@ from google.ads.googleads.errors import GoogleAdsException
 def budget_alerts(total, cfg=None):
     cap = (cfg or config.get()).limits.daily_budget_cap
     return [f"Total daily budget {ads_client.currency()} {total:.2f} is over the {cap:g} cap"] if total > cap + 1e-9 else []
+
+
+def reserve_alerts(budgets, today, cfg=None, state=None):
+    """Alerts for experiment reserves that the other campaigns overrun. budgets: [(campaign, budget resource,
+    amount)] of the enabled campaigns. Pure."""
+    cfg = cfg or config.get()
+    cur = cfg.account.currency
+    out = []
+    for e in experiments.reserves(today, state, cfg):
+        others, cap = experiments.others_total(budgets, e["campaign"]), e["reserve"]["others_max"]
+        if others > cap + 1e-9:
+            out.append(f"Campaigns other than {e['campaign']} have {cur} {others:.2f} a day, over the {cur} {cap:.2f} "
+                       f"they may use until {e['end']} (experiment {e['id']} reserves the room above "
+                       f"{cur} {e['reserve']['base_cap']:g})")
+    return out
 
 
 def check(client, day):
@@ -60,6 +78,8 @@ def check(client, day):
     total = ads_client.budget_total((r.campaign_budget.resource_name, r.campaign_budget.amount_micros / 1e6)
                                     for r in campaigns)  # a shared budget counts once
     alerts += budget_alerts(total, cfg)
+    alerts += reserve_alerts([(r.campaign.name, r.campaign_budget.resource_name, r.campaign_budget.amount_micros / 1e6)
+                              for r in campaigns], ads_client.today(), cfg, experiments.load_state())
 
     stats = rows(ga, f"""SELECT campaign.name, campaign.advertising_channel_type, segments.ad_network_type,
         metrics.impressions, metrics.cost_micros FROM campaign

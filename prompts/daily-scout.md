@@ -13,12 +13,18 @@ workflow commits the runtime files after you finish. Everything else stays the s
 2. `uv run scripts/daily_scout.py`. It changes nothing in Google Ads. It adds yesterday to
    reports/daily/week-<Monday>.json, saves the day's clicks for ref code matching (when ref codes are on),
    backfills a missed earlier day (MISSED), and prints NOTIFY lines (ALERT, NEWS, WIN, REF, REF_GAP, MISSED) or QUIET.
+   An ALERT that the campaigns other than an experiment's go over its reserve means others are using the room the
+   owner added for the experiment.
 3. `uv run scripts/daily_bids.py --apply`. It steps the bids of winning-topic Search ad groups that are still in
-   their stepping window, within its own limits, adds a "bids" section to the same day, and prints NOTIFY lines
-   (BID, and BUDGET when a group starts being held by its campaign budget). Treat them as NOTIFY lines. If it prints
-   FAIL, mention it in step 6. Make no other bid changes.
+   their stepping window, and of groups in a running experiment by the experiment's own rules (their BID lines name
+   the experiment), within its own limits, adds a "bids" section to the same day (with the `market_price` it saw
+   for groups with a market-price ceiling), and prints NOTIFY lines (BID, and BUDGET when a group starts being held
+   by its campaign budget). Treat them as NOTIFY lines. A NOTE that the market price was unavailable, or that an
+   experiment stopped stepping and waits for the weekly, is not a NOTIFY line. If it prints FAIL, mention it in
+   step 6. Make no other bid changes.
 4. `uv run scripts/daily_negatives.py --apply`. It blocks junk search terms of the last days as exact-match campaign
-   negatives (keyword_review's negative rule; winning-topic terms without a junk word are held for the weekly),
+   negatives (keyword_review's negative rule; winning-topic terms without a junk word are held for the weekly, and
+   terms with a lead signal in their campaign within `negatives.protect_days` are skipped as protected),
    logs them to reports/changes.jsonl, adds a "negatives" section to the same day, and prints NOTIFY lines (NEG,
    NEG_HELD). Treat them as NOTIFY lines. If it prints FAIL, mention it in step 6. Add no other keywords or negatives.
 5. Commit only the daily files and the ledger (they are gitignored on purpose, so add them by path):

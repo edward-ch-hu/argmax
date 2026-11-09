@@ -3,7 +3,8 @@
 For each enabled Search keyword (positive), from search_term_view with the keyword segment over DAYS of Google
 Search traffic: spend, clicks, lead-signal conversions (conversions.lead_signals only, as in keyword_review.py), and
 the spend on off-intent search terms. A term is off-intent when
-  - it would be a negative under keyword_review.py's rule (on its totals in the campaign over DAYS, not held), or
+  - it would be a negative under keyword_review.py's rule (on its totals in the campaign over DAYS, not held, and
+    not protected by a lead signal in its campaign over negatives.protect_days), or
   - it has a junk word (negatives.junk_words), or
   - its main topic differs from the ad group's topic (ad_group_topics) and is not a winning topic.
 Proposals (all approve=false; the weekly raises one "Unless you say no" decision, then applies the file with
@@ -19,12 +20,14 @@ Usage: uv run scripts/match_type_review.py [DAYS]   (7, 14 or 30; default 30)
 import json
 import sys
 from collections import defaultdict
+from datetime import timedelta
 from pathlib import Path
 
 import ads_client
 import config
 from ads_client import rows
-from keyword_review import junk_word, lead_conversions, money, negative_rule, period_of, search_campaigns, with_conversions
+from keyword_review import (junk_word, lead_conversions, money, negative_rule, norm, period_of, protect_terms,
+                            search_campaigns, with_conversions)
 from topics import ad_group_topic, main_topic
 
 TOP_TERMS = 5
@@ -35,12 +38,12 @@ def rules(cfg=None):
     return {"BROAD": ("PHRASE", m.broad_to_phrase_share), "PHRASE": ("EXACT", m.phrase_to_exact_share)}
 
 
-def off_intent(term, totals, group_topic, cfg=None):
+def off_intent(term, totals, group_topic, cfg=None, recent=0):
     """True when a search term is off-intent for a keyword in a group of `group_topic`. totals = (cost, clicks, conv)
-    of the term in its campaign over the window."""
+    of the term in its campaign over the window; recent = its lead signals over negatives.protect_days."""
     cfg = cfg or config.get()
     cost, clicks, conv = totals
-    negative = negative_rule(term, cost, clicks, conv, cfg)
+    negative = negative_rule(term, cost, clicks, conv, cfg, recent)
     topic = main_topic(term, cfg.topics)
     return bool((negative and not negative[2]) or junk_word(term, cfg.negatives.junk_words)
                 or (group_topic and topic != group_topic and topic not in cfg.winning_topics))
@@ -87,10 +90,12 @@ def main():
         t[1] += m.clicks
         t[2] += m.conversions
 
+    recent = protect_terms(ga, campaigns, ads_client.today() - timedelta(days=1), cfg)
     for r, m in found:
         k, term = keywords[r.segments.keyword.ad_group_criterion], r.search_term_view.search_term
         cost, clicks, conv = totals[(r.campaign.id, term.lower())]
-        off = off_intent(term, (money(cost), clicks, conv), ad_group_topic(k["ad_group"]), cfg)
+        off = off_intent(term, (money(cost), clicks, conv), ad_group_topic(k["ad_group"]), cfg,
+                         recent.get((r.campaign.id, norm(term)), 0))
         k["micros"] += m.cost_micros
         k["clicks"] += m.clicks
         k["conversions"] += m.conversions

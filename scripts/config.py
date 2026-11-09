@@ -18,6 +18,10 @@ The business profile (business:) is the one source for markets and languages. Wh
 ad_tests.campaign_locales and ad_tests.default_locale are derived from business.markets (when set, they must agree
 with the markets). report.client_update.language defaults to business.report_language, business.deal_currency to
 account.currency, and crm.deal_value_fx is needed only when those two currencies differ.
+
+experiments: is a list of guarded bid experiments (scripts/experiments.py). Each entry is validated and completed
+with EXPERIMENT_DEFAULTS in place (dates become YYYY-MM-DD strings, reserve.others_max is derived when left out), so
+every script reads the same numbers. market_price: holds the hard safety_limit any market-price ceiling stays under.
 """
 import copy
 import os
@@ -36,14 +40,25 @@ CRM_SOURCES = ("none", "csv", "google_sheets")
 STATUSES = ("talking", "trial", "won", "lost_after_trial", "lost_no_trial")
 RESERVED_TOPICS = ("other", "none", "mixed")
 GOALS = ("leads", "sales", "roas", "calls", "awareness")
+# Where bidding ends up: a hand-off to Google's Smart Bidding, or Manual CPC run by the agent for good.
+BIDDING_END_STATES = ("smart_bidding", "manual_cpc")
 # Google Ads API access levels (per Cloud project since 2026-09-09) and their operations per day on production
 # accounts: https://developers.google.com/google-ads/api/docs/api-policy/access-levels . None = not known yet.
 ACCESS_LEVELS = {"unknown": None, "test": 0, "explorer": 2880, "basic": 15000, "standard": float("inf")}
 IDEAS_MODES = ("auto", "off")
+EXPERIMENT_TYPES = ("ceiling_test",)
+CEILING_SOURCES = ("fixed", "market")
+EXPERIMENT_DEFAULTS = {
+    "type": "ceiling_test", "step": 0.20, "weekly_limit": 0.60, "stop_rank_lost": 0.10, "ceiling": "fixed",
+    "ceiling_amount": None, "pre_test": None, "reserve": None,
+    "kill": {"min_leads": 1, "max_cost_per_lead": None},
+    "mid_check": {"min_click_rise": 0.15, "max_cpc_rise": 0.30, "window_days": 7, "min_days": 3},
+}
+EXPERIMENT_KEYS = {"id", "campaign", "ad_group", "start", "end", *EXPERIMENT_DEFAULTS}
 
 DEFAULTS = {
     "business": {"goal": None, "goal_description": None, "primary_kpi": None, "kpi_conversions": [], "markets": [],
-                 "report_language": "English", "deal_currency": None},
+                 "report_language": "English", "deal_currency": None, "bidding_end_state": None},
     "account": {"customer_id": None, "login_customer_id": None, "name": "my account", "currency": None,
                 "timezone": None},
     "limits": {"daily_budget_cap": None, "weekly_bid_change": 0.20, "bid_floor": 0.20, "bid_ceiling": 5.00,
@@ -51,7 +66,8 @@ DEFAULTS = {
     "guard": {"expected_bidding": "MANUAL_CPC", "search_networks_only": True, "overspend_multiple": 2.0},
     "stepping": {"enabled": True, "step": 0.10, "weekly_limit": 0.30, "window_days": 14,
                  "rank_lost_band": [0.20, 0.50], "budget_lost_max": 0.20, "min_impressions": 30, "new_groups": {}},
-    "negatives": {"max_per_day": 10, "lookback_days": 7, "held_notify_cost": 5.0, "min_cost": 3.0, "min_cost_clicks": 3, "min_clicks": 10,
+    "negatives": {"max_per_day": 10, "lookback_days": 7, "protect_days": 30, "held_notify_cost": 5.0, "min_cost": 3.0,
+                  "min_cost_clicks": 3, "min_clicks": 10,
                   "junk_words": ["free", "download", "crack", "torrent", "jobs", "job", "salary", "career",
                                  "tutorial", "course", "github", "reddit"]},
     "api": {"access_level": "unknown"},
@@ -74,11 +90,13 @@ DEFAULTS = {
     "ref_codes": {"enabled": False, "prefix": "AM-", "live_from": None, "test_codes": []},
     "tracker": {"backend": "files", "github": {}, "clickup": {}, "notion": {}, "linear": {}, "files": {}},
     "report": {"history_start": None, "client_update": {"enabled": True, "language": None, "blocklist": []}},
+    "market_price": {"safety_limit": None, "fallback": None, "groups": []},
+    "experiments": [],
 }
 # Sections that become attribute namespaces (cfg.limits.daily_budget_cap). Mappings keyed by user names (topics,
 # ad group names, statuses, columns) stay plain dicts.
 SECTIONS = ("business", "account", "api", "limits", "guard", "stepping", "negatives", "keyword_review", "match_type_review",
-            "conversions", "website", "ad_tests", "crm", "ref_codes", "tracker", "report")
+            "conversions", "website", "ad_tests", "crm", "ref_codes", "tracker", "report", "market_price")
 
 
 class ConfigError(Exception):
@@ -141,6 +159,12 @@ def validate_business(p, c):
     if b["goal"] is not None and not b["primary_kpi"]:
         p.append("business.primary_kpi: needed once business.goal is set (what success is counted in, e.g. CRM wins)")
     one_line(p, "business.report_language", b["report_language"], required=True)
+    end = b["bidding_end_state"]
+    if end is not None and end not in BIDDING_END_STATES:
+        p.append(f"business.bidding_end_state: must be one of {', '.join(BIDDING_END_STATES)} (got {end!r})")
+    elif end == "manual_cpc" and c["guard"]["expected_bidding"] != "MANUAL_CPC":
+        p.append("guard.expected_bidding: must be MANUAL_CPC while business.bidding_end_state is manual_cpc (bids stay "
+                 f"Manual CPC for good, so the daily guard alerts on any other strategy; got {c['guard']['expected_bidding']!r})")
     if b["deal_currency"] is None:
         b["deal_currency"] = a["currency"]
     elif not (isinstance(b["deal_currency"], str) and re.fullmatch(r"[A-Z]{3}", b["deal_currency"])):
@@ -188,6 +212,169 @@ def validate_business(p, c):
                 p.append(f"{where}.campaign_prefix: '{prefix}' is used by two markets")
             else:
                 prefixes.add(prefix)
+
+
+def is_number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def iso_day(problems, where, value):
+    """value as a YYYY-MM-DD string, or None with a problem line."""
+    try:
+        return str(date.fromisoformat(str(value)))
+    except ValueError:
+        problems.append(f"{where}: must be a date YYYY-MM-DD (got {value!r})")
+        return None
+
+
+def group_pair(problems, where, value):
+    """(campaign, ad group) from a {campaign, ad_group} mapping, or None with a problem line."""
+    if not (isinstance(value, dict) and set(value) == {"campaign", "ad_group"}
+            and all(isinstance(v, str) and v for v in value.values())):
+        problems.append(f"{where}: must be {{campaign: <exact name>, ad_group: <exact name>}} (got {value!r})")
+        return None
+    return value["campaign"], value["ad_group"]
+
+
+def validate_market_price(p, c):
+    """market_price: safety_limit (the hard cap of every market-price ceiling), fallback, groups (normal stepping)."""
+    m, lim = c["market_price"], c["limits"]
+    if m["safety_limit"] is not None:
+        number(p, "market_price.safety_limit", m["safety_limit"], 0, low_open=True)
+        if is_number(m["safety_limit"]) and is_number(lim["bid_floor"]) and m["safety_limit"] <= lim["bid_floor"]:
+            p.append("market_price.safety_limit: must be over limits.bid_floor")
+    if m["fallback"] is not None:
+        number(p, "market_price.fallback", m["fallback"], 0, low_open=True)
+        if is_number(m["fallback"]) and is_number(m["safety_limit"]) and m["fallback"] > m["safety_limit"]:
+            p.append("market_price.fallback: must be at most market_price.safety_limit")
+    if not isinstance(m["groups"], list):
+        p.append("market_price.groups: must be a list of {campaign, ad_group}")
+        m["groups"] = []
+    for i, g in enumerate(m["groups"]):
+        group_pair(p, f"market_price.groups[{i}]", g)
+    if m["groups"] and m["safety_limit"] is None:
+        p.append("market_price.safety_limit: needed when market_price.groups is set (the hard cap over any estimate)")
+
+
+def validate_experiment(p, c, i, e, ids):
+    """One experiments: entry, completed with EXPERIMENT_DEFAULTS in place. Returns its (campaign, group, start, end)
+    or None."""
+    where = f"experiments[{i}]"
+    if not isinstance(e, dict):
+        p.append(f"{where}: must be a mapping (id, campaign, ad_group, start, end, ...)")
+        return None
+    unknown = set(e) - EXPERIMENT_KEYS
+    if unknown:
+        p.append(f"{where}: unknown key(s) {', '.join(sorted(unknown))}")
+    eid = e.get("id")
+    if not (isinstance(eid, str) and re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,39}", eid)):
+        p.append(f"{where}.id: lower-case letters, digits, - and _, like analytics-ceiling-1 (got {eid!r})")
+    else:
+        where = f"experiments.{eid}"
+        if eid in ids:
+            p.append(f"{where}: two experiments have this id")
+        ids.add(eid)
+    for key, value in EXPERIMENT_DEFAULTS.items():
+        if isinstance(value, dict) and isinstance(e.get(key), dict):
+            e[key] = {**value, **e[key]}
+        elif key not in e:
+            e[key] = copy.deepcopy(value)
+    lim, m = c["limits"], c["market_price"]
+    if e["type"] not in EXPERIMENT_TYPES:
+        p.append(f"{where}.type: must be one of {', '.join(EXPERIMENT_TYPES)} (got {e['type']!r})")
+    for key in ("campaign", "ad_group"):
+        if not (isinstance(e.get(key), str) and e[key]):
+            p.append(f"{where}.{key}: the exact {key.replace('_', ' ')} name")
+    start, end = (iso_day(p, f"{where}.{k}", e.get(k)) for k in ("start", "end"))
+    e["start"], e["end"] = start or e.get("start"), end or e.get("end")
+    if start and end and end < start:
+        p.append(f"{where}.end: must not be before start")
+    number(p, f"{where}.step", e["step"], 0, 0.5, low_open=True)
+    number(p, f"{where}.weekly_limit", e["weekly_limit"], 0, 1, low_open=True)
+    number(p, f"{where}.stop_rank_lost", e["stop_rank_lost"], 0, 0.99)
+
+    hard = max(x for x in (lim["bid_ceiling"], m["safety_limit"]) if is_number(x)) if is_number(lim["bid_ceiling"]) else None
+    if e["ceiling"] not in CEILING_SOURCES:
+        p.append(f"{where}.ceiling: must be one of {', '.join(CEILING_SOURCES)} (got {e['ceiling']!r})")
+    elif e["ceiling"] == "market":
+        if m["safety_limit"] is None:
+            p.append(f"{where}.ceiling: market needs market_price.safety_limit (the hard cap over any estimate)")
+        if e["ceiling_amount"] is not None:
+            p.append(f"{where}.ceiling_amount: only for a fixed ceiling (market uses market_price.safety_limit)")
+    else:
+        if e["ceiling_amount"] is None:
+            e["ceiling_amount"] = lim["bid_ceiling"]
+        number(p, f"{where}.ceiling_amount", e["ceiling_amount"], lim["bid_floor"] if is_number(lim["bid_floor"]) else 0,
+               hard, low_open=True)
+
+    pre = e["pre_test"]
+    if not (isinstance(pre, dict) and "bid" in pre and set(pre) <= {"bid", "budget"}):
+        p.append(f"{where}.pre_test: {{bid: <the group's bid before the test>, budget: <its campaign's daily budget, "
+                 "optional>}}: the kill rule reverts to them")
+        pre = e["pre_test"] = None
+    else:
+        number(p, f"{where}.pre_test.bid", pre["bid"], lim["bid_floor"], lim["bid_ceiling"])
+        pre.setdefault("budget", None)
+        if pre["budget"] is not None:
+            number(p, f"{where}.pre_test.budget", pre["budget"], 0, low_open=True)
+
+    kill = e["kill"]
+    if not isinstance(kill, dict) or set(kill) - {"min_leads", "max_cost_per_lead"}:
+        p.append(f"{where}.kill: {{min_leads: <n>, max_cost_per_lead: <amount or null>}}")
+    else:
+        if not (isinstance(kill["min_leads"], int) and not isinstance(kill["min_leads"], bool) and kill["min_leads"] >= 0):
+            p.append(f"{where}.kill.min_leads: a whole number, 0 or more (got {kill['min_leads']!r})")
+        if kill["max_cost_per_lead"] is not None:
+            number(p, f"{where}.kill.max_cost_per_lead", kill["max_cost_per_lead"], 0, low_open=True)
+
+    mc = e["mid_check"]
+    if mc is not None:
+        if not isinstance(mc, dict) or set(mc) - set(EXPERIMENT_DEFAULTS["mid_check"]):
+            p.append(f"{where}.mid_check: {{min_click_rise, max_cpc_rise, window_days, min_days}}, or null for none")
+        else:
+            number(p, f"{where}.mid_check.min_click_rise", mc["min_click_rise"], 0, 10)
+            number(p, f"{where}.mid_check.max_cpc_rise", mc["max_cpc_rise"], 0, 10)
+            number(p, f"{where}.mid_check.window_days", mc["window_days"], 2, 28)
+            number(p, f"{where}.mid_check.min_days", mc["min_days"], 1, 28)
+            if is_number(mc["min_days"]) and is_number(mc["window_days"]) and mc["min_days"] > mc["window_days"]:
+                p.append(f"{where}.mid_check.min_days: must not be over window_days")
+
+    r = e["reserve"]
+    if r is not None:
+        if not isinstance(r, dict) or "base_cap" not in r or set(r) - {"base_cap", "others_max"}:
+            p.append(f"{where}.reserve: {{base_cap: <the cap before the test>, others_max: <optional>}}")
+        else:
+            number(p, f"{where}.reserve.base_cap", r["base_cap"], 0, lim["daily_budget_cap"]
+                   if is_number(lim["daily_budget_cap"]) else None, low_open=True)
+            if r.get("others_max") is None:
+                budget = (pre or {}).get("budget")
+                if is_number(budget) and is_number(r["base_cap"]):
+                    r["others_max"] = round(r["base_cap"] - budget, 2)
+                else:
+                    p.append(f"{where}.reserve.others_max: needed when pre_test.budget is not set (what every other "
+                             "enabled campaign together may use until the end date)")
+                    r["others_max"] = None
+            if r["others_max"] is not None:
+                number(p, f"{where}.reserve.others_max", r["others_max"], 0, r["base_cap"]
+                       if is_number(r["base_cap"]) else None, low_open=True)
+    if start and end and isinstance(e.get("campaign"), str) and isinstance(e.get("ad_group"), str):
+        return e["campaign"], e["ad_group"], start, end
+    return None
+
+
+def validate_experiments(p, c):
+    if not isinstance(c["experiments"], list):
+        p.append("experiments: must be a list (or [] for none)")
+        c["experiments"] = []
+        return
+    ids, spans = set(), []
+    for i, e in enumerate(c["experiments"]):
+        span = validate_experiment(p, c, i, e, ids)
+        if span:
+            for other in spans:
+                if other[:2] == span[:2] and other[2] <= span[3] and span[2] <= other[3]:
+                    p.append(f"experiments: two experiments on {span[0]} / {span[1]} overlap in time")
+            spans.append(span)
 
 
 def market_locales(c):
@@ -257,6 +444,10 @@ def validate(c):
     n = c["negatives"]
     number(p, "negatives.max_per_day", n["max_per_day"], 0)
     number(p, "negatives.lookback_days", n["lookback_days"], 1, 90)
+    number(p, "negatives.protect_days", n["protect_days"], 0, 365)
+    if isinstance(n["protect_days"], (int, float)) and isinstance(n["lookback_days"], (int, float)) and \
+            0 < n["protect_days"] < n["lookback_days"]:
+        p.append("negatives.protect_days: must be 0 (off) or at least negatives.lookback_days")
     number(p, "negatives.min_cost", n["min_cost"], 0)
     number(p, "negatives.min_clicks", n["min_clicks"], 1)
     number(p, "negatives.min_cost_clicks", n["min_cost_clicks"], 1)
@@ -313,6 +504,8 @@ def validate(c):
             p.append(f"conversions: {', '.join(sorted(both))} is both a lead signal and a noise signal")
 
     validate_business(p, c)
+    validate_market_price(p, c)
+    validate_experiments(p, c)
     langs, market_prefixes = market_locales(c)
 
     w = c["website"]

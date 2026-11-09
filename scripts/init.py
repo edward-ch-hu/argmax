@@ -1,7 +1,7 @@
 """Write argmax.yaml from answers. Non-interactive (what the onboarding agent calls) or interactive (by hand).
 
 Answers are a partial config (YAML or JSON) laid over argmax.example.yaml after its fictional parts are cleared
-(business profile, topics, ad group map, conversions, website, CRM, tracker): whatever you do not answer keeps the
+(business profile, topics, ad group map, conversions, website, CRM, tracker, market_price, experiments): whatever you do not answer keeps the
 example's limits and thresholds. Shortcuts: "topics" may be a list of names (each becomes a substring of itself), an
 empty or missing website.base_url turns ad tests off, and business.goal without primary_kpi gets the usual KPI for
 that goal (DEFAULT_KPI). The result is validated before anything is written.
@@ -34,7 +34,6 @@ Changes nothing in Google Ads.
 """
 import math
 import copy
-import shutil
 import sys
 from pathlib import Path
 
@@ -65,6 +64,9 @@ def cleared(base):
     c["ref_codes"] = copy.deepcopy(config.DEFAULTS["ref_codes"])
     c["tracker"] = merge_plain(copy.deepcopy(config.DEFAULTS["tracker"]), {"backend": "files"})
     c["report"]["client_update"]["blocklist"] = []
+    # a market-price ceiling and experiments are set later, with the owner's "yes" (the example's are USD-sized)
+    c["market_price"] = copy.deepcopy(config.DEFAULTS["market_price"])
+    c["experiments"] = []
     return c
 
 
@@ -198,6 +200,9 @@ def read_back(c, cpc=None, budget_total=None):
     lines.append(f"- A keyword with no lead signal is proposed for a pause after {m(c['keyword_review']['min_pause_cost'])}.")
     lines.append(f"- A keyword is proposed for a tighter match type once {m(c['match_type_review']['min_off_intent_spend'])} "
                  "of its spend went to off-intent searches.")
+    safety = (c.get("market_price") or {}).get("safety_limit")
+    if safety:
+        lines.append(f"- No market-price ceiling (experiments, market_price.groups) ever goes above {m(safety)}.")
     if cpc:
         lines.append(f"- STRATEGY.md evidence floor: no topic is cut on outcome data before about "
                      f"{m(amount(EVIDENCE_MULTIPLE * cpc, cur))} spent on it ({EVIDENCE_MULTIPLE} x CPC).")
@@ -216,7 +221,9 @@ def write(c, force=False):
     print(f"Wrote {TARGET}.")
 
 
-def copy_strategy(name):
+def copy_strategy(name, end_state=None):
+    """Copies strategies/<name>.md to STRATEGY.md (never over an existing one), with its "Bidding end state" line set
+    to business.bidding_end_state when that is known."""
     if Path("STRATEGY.md").exists():
         print("STRATEGY.md exists: left as it is.")
         return
@@ -224,8 +231,12 @@ def copy_strategy(name):
     if not src.exists():
         sys.exit(f"No strategy template {src}. Choose one of: "
                  + ", ".join(sorted(p.stem for p in STRATEGIES.glob("*.md") if p.stem != "README")))
-    shutil.copy(src, "STRATEGY.md")
-    print(f"Copied {src} to STRATEGY.md.")
+    text = src.read_text(encoding="utf-8")
+    if end_state:
+        import strategy_check
+        text = strategy_check.pick_bidding(text, end_state)
+    Path("STRATEGY.md").write_text(text, encoding="utf-8")
+    print(f"Copied {src} to STRATEGY.md" + (f" (bidding end state: {end_state})." if end_state else "."))
 
 
 def ask(question, default=None, check=None):
@@ -269,7 +280,11 @@ def interactive(base):
                      "countries": ask_list("Its countries or regions (comma-separated)", ["US"]),
                      "language": language}],
         "report_language": ask("Language for reports and decisions", "English"),
-        "deal_currency": ask("Currency of deal values in your CRM", a["account"]["currency"]).upper()}
+        "deal_currency": ask("Currency of deal values in your CRM", a["account"]["currency"]).upper(),
+        "bidding_end_state": ask("Where bidding ends up: smart_bidding (hand bids to Google once conversions are many "
+                                 "and clean) or manual_cpc (the agent keeps Manual CPC for good; low volume or noisy "
+                                 "conversions)", "manual_cpc",
+                                 check=lambda v: None if v in config.BIDDING_END_STATES else "smart_bidding or manual_cpc")}
     if a["business"]["deal_currency"] != a["account"]["currency"]:
         cur, deal = a["account"]["currency"], a["business"]["deal_currency"]
         a["crm"] = {"deal_value_fx": float(ask(f"How many {cur} is 1 {deal} (for ROI)", "1"))}
@@ -334,7 +349,7 @@ def main():
     write(c, "--force" in args)
     print(read_back(c, cpc, budget_total))
     if opt("--strategy"):
-        copy_strategy(opt("--strategy"))
+        copy_strategy(opt("--strategy"), c["business"].get("bidding_end_state"))
     print("Next: `uv run scripts/doctor.py` shows what is still missing.")
 
 

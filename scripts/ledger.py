@@ -1,10 +1,11 @@
 """Change ledger: one JSON line per change applied to the account, in reports/changes.jsonl.
 
-Written by apply_changes.py, apply_keyword_review.py, daily_negatives.py, daily_bids.py and ad_test.py on --apply;
-read by monthly_report.py (change_audit) to check whether past changes worked. Each line: date, routine, level
-(campaign / ad_group / keyword / ad), entity, field, before, after, reason, topic (a topic name, or "mixed" for a
-campaign-wide change), expected_effect, judge_leads_after (date + 6 weeks) and judge_wins_after (date + 10 weeks).
-daily_negatives.py also adds campaign, text, cost and clicks to its lines.
+Written by apply_changes.py, apply_keyword_review.py, daily_negatives.py, daily_bids.py, experiments.py and
+ad_test.py on --apply; read by monthly_report.py (change_audit) to check whether past changes worked. Each line:
+date, routine, level (campaign / ad_group / keyword / ad), entity, field, before, after, reason, topic (a topic name,
+or "mixed" for a campaign-wide change), expected_effect, judge_leads_after (date + 6 weeks) and judge_wins_after
+(date + 10 weeks). daily_negatives.py also adds campaign, text, cost and clicks to its lines. A change made by or for
+an experiment (daily_bids.py steps, experiments.py ends and reverses) carries its id in "experiment".
 
 Written in two steps, so a run that dies mid-mutate leaves a trace: before the mutate the planned entries are printed
 and written with "status": "pending" and an "id"; after it, the same ids are written again with "status": "applied"
@@ -25,12 +26,16 @@ LEADS_AFTER, WINS_AFTER = timedelta(weeks=6), timedelta(weeks=10)
 OUTCOMES = ("applied", "failed")
 
 
-def entry(level, entity, field, before, after, reason, topic, expected_effect, routine="weekly", day=None):
+def entry(level, entity, field, before, after, reason, topic, expected_effect, routine="weekly", day=None,
+          experiment=None):
     day = day or ads_client.today()
-    return {"date": str(day), "routine": routine, "level": level, "entity": entity, "field": field,
-            "before": before, "after": after, "reason": reason, "topic": topic or "mixed",
-            "expected_effect": expected_effect, "judge_leads_after": str(day + LEADS_AFTER),
-            "judge_wins_after": str(day + WINS_AFTER)}
+    out = {"date": str(day), "routine": routine, "level": level, "entity": entity, "field": field,
+           "before": before, "after": after, "reason": reason, "topic": topic or "mixed",
+           "expected_effect": expected_effect, "judge_leads_after": str(day + LEADS_AFTER),
+           "judge_wins_after": str(day + WINS_AFTER)}
+    if experiment:
+        out["experiment"] = experiment
+    return out
 
 
 def write(lines, path=None):
