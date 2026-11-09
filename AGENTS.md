@@ -63,7 +63,7 @@ Apply on your own, then report:
   Tighten <n> keywords to phrase/exact" decision first, applied with `apply_keyword_review.py` after its due date.
 - Bids: within `limits.weekly_bid_change` per ad group per week (from its Monday bid), inside `limits.bid_floor` to
   `limits.bid_ceiling`. Exception: a winning-topic Search group is stepped daily by `daily_bids.py` during its
-  `stepping.window_days`; inside that window never change its bid by hand, change the config instead. After it the
+  `stepping.window_days` (from its first daily evaluation, `reports/stepping.json`); inside that window never change its bid by hand, change the config instead. After it the
   group is "settled" and the weekly makes one move per week toward `stepping.rank_lost_band` on the last 7 days,
   via `apply_changes.py`.
 - Budget shifts between campaigns, as long as the total daily budget across enabled campaigns stays at or under

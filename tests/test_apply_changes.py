@@ -22,8 +22,8 @@ KEYWORDS = [
 ]
 
 
-def run(changes, history=None, firsts=None):
-    return apply_changes.evaluate(changes, CAMPS, GROUPS, KEYWORDS, history or {}, firsts or {}, TODAY)
+def run(changes, history=None, starts=None):
+    return apply_changes.evaluate(changes, CAMPS, GROUPS, KEYWORDS, history or {}, starts or {}, TODAY)
 
 
 def test_valid_file_builds_a_plan():
@@ -68,11 +68,11 @@ def test_bid_floor_and_ceiling(use):
 
 def test_stepping_window_blocks_winning_groups():
     bid = {"bids": [{"campaign": "US - Search", "ad_group": "Analytics", "cpc": 2.1}]}
-    fails, _, _ = run(bid, firsts={("US - Search", "Analytics"): date(2026, 1, 1)})
+    fails, _, _ = run(bid, starts={("US - Search", "Analytics"): date(2026, 1, 1)})
     assert any("still stepping" in f for f in fails)
-    fails, _, _ = run(bid)  # no step yet: the window has not started, the daily owns it
-    assert any("still stepping" in f for f in fails)
-    fails, _, _ = run(bid, firsts={("US - Search", "Analytics"): date(2025, 12, 20)})  # settled after 14 days
+    fails, _, _ = run(bid)  # never evaluated by the daily (no reports/daily/, no ledger): no window, the weekly may
+    assert fails == []
+    fails, _, _ = run(bid, starts={("US - Search", "Analytics"): date(2025, 12, 20)})  # settled after 14 days
     assert fails == []
 
 

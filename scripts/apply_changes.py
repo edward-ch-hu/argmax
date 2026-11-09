@@ -25,7 +25,8 @@ Refuses the whole file (FAIL lines, exit 1, nothing changed) when:
   in the same file count; paused campaigns don't; a budget shared by several campaigns counts once)
 - an ad group bid is more than limits.weekly_bid_change away from that group's bid at the start of the week
   (Monday 00:00 in the account time zone), or outside limits.bid_floor to limits.bid_ceiling
-- a bid is set on a winning-topic Search group still inside its daily_bids.py stepping window
+- a bid is set on a winning-topic Search group still inside its daily_bids.py stepping window (window_days from the
+  group's first daily evaluation; a group the daily never evaluated has no window)
 - a Performance Max campaign is enabled (unless limits.allow_enable_performance_max)
 - a name does not match exactly one campaign, ad group or keyword, or the same thing is listed twice
 All changes go in one atomic request.
@@ -84,9 +85,9 @@ def load_account(ga, with_keywords):
     return camps, groups, keywords
 
 
-def evaluate(changes, camps, groups, keywords, bid_history, firsts, today, cfg=None):
+def evaluate(changes, camps, groups, keywords, bid_history, starts, today, cfg=None):
     """Check a changes file against the account (plain dicts). Pure, for tests.
-    bid_history: {ad group resource: [(time, old, new, was_enabled)]} since Monday; firsts: daily_bids.first_steps().
+    bid_history: {ad group resource: [(time, old, new, was_enabled)]} since Monday; starts: daily_bids.window_starts().
     Returns (fails, plan, (total before, total after)); plan = {(kind, resource): {fields, labels, ledger}}."""
     cfg = cfg or config.get()
     lim = cfg.limits
@@ -145,7 +146,7 @@ def evaluate(changes, camps, groups, keywords, bid_history, firsts, today, cfg=N
             fails.append(f"bid {where}: cpc must be a positive number")
             continue
         if daily_bids.managed(g["channel"], g["name"]) and cfg.stepping.enabled and \
-                not daily_bids.settled(g["campaign"], g["name"], today, firsts):
+                daily_bids.stepping(g["campaign"], g["name"], today, starts):
             fails.append(f"bid {where}: daily_bids.py is still stepping this winning-topic group; change its rules instead")
             continue
         start = daily_bids.week_start_bid(bid_history.get(g["resource"], []), g["bid"])
@@ -216,7 +217,7 @@ def check(ga, changes):
     today = ads_client.today()
     monday = today - timedelta(days=today.weekday())
     bid_history = daily_bids.bid_changes(ga, monday, today + timedelta(days=1))
-    return evaluate(changes, camps, groups, keywords, bid_history, daily_bids.first_steps(), today)
+    return evaluate(changes, camps, groups, keywords, bid_history, daily_bids.window_starts(), today)
 
 
 def operations(client, plan):

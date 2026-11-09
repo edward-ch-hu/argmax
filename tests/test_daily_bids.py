@@ -36,11 +36,45 @@ def test_weekly_limit_and_ceiling():
 def test_stepping_window(tmp_path, monkeypatch):
     week = {"days": {"2026-01-05": {"bids": [{"campaign": "US - Search", "ad_group": "Analytics", "action": "raise"}]}}}
     (tmp_path / "week-2026-01-05.json").write_text(json.dumps(week))
-    firsts = daily_bids.first_steps(tmp_path)
-    assert firsts == {("US - Search", "Analytics"): date(2026, 1, 6)}
-    assert not daily_bids.settled("US - Search", "Analytics", date(2026, 1, 19), firsts)
-    assert daily_bids.settled("US - Search", "Analytics", date(2026, 1, 20), firsts)
-    assert not daily_bids.settled("US - Search", "Reporting", date(2026, 3, 1), firsts)
+    starts = daily_bids.window_starts(tmp_path, entries=[], state=tmp_path / "none.json")
+    assert starts == {("US - Search", "Analytics"): date(2026, 1, 6)}
+    assert not daily_bids.settled("US - Search", "Analytics", date(2026, 1, 19), starts)
+    assert daily_bids.stepping("US - Search", "Analytics", date(2026, 1, 19), starts)
+    assert daily_bids.settled("US - Search", "Analytics", date(2026, 1, 20), starts)
+    assert not daily_bids.stepping("US - Search", "Analytics", date(2026, 1, 20), starts)
+    assert not daily_bids.settled("US - Search", "Reporting", date(2026, 3, 1), starts)
+    assert not daily_bids.stepping("US - Search", "Reporting", date(2026, 3, 1), starts)  # never evaluated
+
+
+def test_window_starts_at_the_first_evaluation_stepped_or_not(tmp_path):
+    # held every day (never stepped): the window still starts on the first evaluation
+    week = {"days": {"2026-01-05": {"bids": [{"campaign": "US - Search", "ad_group": "Analytics", "action": "hold"}]}}}
+    (tmp_path / "week-2026-01-05.json").write_text(json.dumps(week))
+    starts = daily_bids.window_starts(tmp_path, entries=[], state=tmp_path / "none.json")
+    assert starts == {("US - Search", "Analytics"): date(2026, 1, 6)}
+    assert daily_bids.settled("US - Search", "Analytics", date(2026, 1, 20), starts)
+
+
+def test_window_starts_from_the_ledger_and_the_state_file(tmp_path):
+    entries = [{"date": "2026-01-10", "routine": "daily", "level": "ad_group", "field": "cpc", "entity": "US - Search / Analytics",
+                "campaign": "US - Search", "ad_group": "Analytics", "status": "applied"},
+               {"date": "2026-01-08", "routine": "daily", "level": "ad_group", "field": "cpc", "entity": "US - Search / BI",
+                "status": "pending", "id": "x"},  # never confirmed: not a step
+               {"date": "2026-01-09", "routine": "daily", "level": "ad_group", "field": "cpc",
+                "entity": "UK - Search / Analytics"}]  # an old line: names from the entity
+    empty = tmp_path / "daily"
+    empty.mkdir()  # reports/daily/ empty or gone: the ledger still knows
+    starts = daily_bids.window_starts(empty, entries=entries, state=tmp_path / "none.json")
+    assert starts == {("US - Search", "Analytics"): date(2026, 1, 10), ("UK - Search", "Analytics"): date(2026, 1, 9)}
+
+    state = tmp_path / "stepping.json"
+    groups = [{"campaign": "US - Search", "ad_group": "Analytics"}, {"campaign": "US - Search", "ad_group": "BI"}]
+    assert daily_bids.record_evaluations(groups, date(2026, 1, 7), state) == [("US - Search", "Analytics"),
+                                                                              ("US - Search", "BI")]
+    assert daily_bids.record_evaluations(groups, date(2026, 1, 8), state) == []  # never moves a start
+    starts = daily_bids.window_starts(empty, entries=entries, state=state)
+    assert starts[("US - Search", "Analytics")] == date(2026, 1, 7)  # the earliest record wins
+    assert starts[("US - Search", "BI")] == date(2026, 1, 7)
 
 
 def test_managed_and_week_start():

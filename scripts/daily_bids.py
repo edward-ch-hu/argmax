@@ -11,8 +11,12 @@ ad rank. Judged on yesterday's data.
 Limits: one step per group per day (none if the bid changed after the data day ended), stepping.weekly_limit per
 group per calendar week (from the bid on Monday; groups in stepping.new_groups skip this until their date), and
 limits.bid_floor to limits.bid_ceiling. Only steps on yesterday's data; an older DATE prints the plan, never applies.
-Stepping window: a group steps only for stepping.window_days from its first recorded step (from the daily files'
-bids sections). After that it is "settled": no daily step and no BID or BUDGET notice; the weekly review sets its bid.
+Stepping window: a group steps only for stepping.window_days from its first daily evaluation, stepped or not. The
+start is the earliest of: reports/stepping.json (written on every --apply run: the first day each group was
+evaluated, never overwritten), the first daily step in reports/changes.jsonl (routine daily, field cpc), and the first
+day the group shows up in a daily file's bids section. After the window the group is "settled": no daily step and no
+BID or BUDGET notice; the weekly review sets its bid. A group the daily never evaluated has no window yet, so the
+weekly may set its bid (apply_changes.py refuses bids only inside a window).
 
 Adds a "bids" section to the day in reports/daily/week-<MONDAY>.json (run after daily_scout.py) and prints one
 NOTIFY line per change, plus one per group newly held by its campaign budget. Each applied step is logged to
@@ -24,6 +28,7 @@ Usage: uv run scripts/daily_bids.py [DATE]          (validate only)
 import json
 import sys
 from datetime import date, timedelta
+from pathlib import Path
 
 import ads_client
 import config
@@ -39,14 +44,60 @@ def managed(channel, ad_group):
     return channel == "SEARCH" and ad_group_topic(ad_group) in winning()
 
 
-def first_steps(out_dir=None):
-    """{(campaign, ad group): run date of its first recorded bid step} from the daily files' bids sections."""
+STATE = Path("reports/stepping.json")
+
+
+def daily_file_starts(out_dir=None):
+    """{(campaign, ad group): run date of its first evaluation} from the daily files' bids sections (any action)."""
     out = {}
     for path in sorted((out_dir or OUT_DIR).glob("week-*.json")):
         for day, entry in sorted((read(path) or {}).get("days", {}).items()):
             for g in entry.get("bids") or []:
-                if g.get("action") in ("raise", "lower"):
-                    out.setdefault((g["campaign"], g["ad_group"]), date.fromisoformat(day) + timedelta(days=1))
+                out.setdefault((g["campaign"], g["ad_group"]), date.fromisoformat(day) + timedelta(days=1))
+    return out
+
+
+def ledger_starts(entries=None):
+    """{(campaign, ad group): date of its first daily bid step} from the ledger (applied lines only)."""
+    out = {}
+    for e in sorted(ledger.read(entries=entries), key=lambda e: e["date"]):
+        if e.get("routine") != "daily" or e.get("field") != "cpc" or e.get("level") != "ad_group":
+            continue
+        key = (e["campaign"], e["ad_group"]) if e.get("ad_group") else tuple(e["entity"].split(" / ", 1))
+        out.setdefault(key, date.fromisoformat(e["date"]))
+    return out
+
+
+def recorded_starts(path=None):
+    """{(campaign, ad group): first evaluation} from reports/stepping.json."""
+    path = path or STATE
+    if not path.exists():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return {(g["campaign"], g["ad_group"]): date.fromisoformat(g["first_evaluated"]) for g in data.get("groups", [])}
+
+
+def record_evaluations(groups, run_day, path=None):
+    """Adds the groups evaluated on `run_day` that reports/stepping.json does not hold yet. Never moves a start."""
+    path = path or STATE
+    known = recorded_starts(path)
+    new = [(g["campaign"], g["ad_group"]) for g in groups if (g["campaign"], g["ad_group"]) not in known]
+    if not new:
+        return []
+    data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {
+        "note": "first daily evaluation per winning-topic group (daily_bids.py); the stepping window starts here"}
+    data.setdefault("groups", []).extend({"campaign": c, "ad_group": a, "first_evaluated": str(run_day)} for c, a in new)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=1))
+    return new
+
+
+def window_starts(out_dir=None, entries=None, state=None):
+    """{(campaign, ad group): the day its stepping window started}: the earliest of the three records."""
+    out = {}
+    for source in (recorded_starts(state), ledger_starts(entries), daily_file_starts(out_dir)):
+        for key, day in source.items():
+            out[key] = min(day, out.get(key, day))
     return out
 
 
@@ -54,10 +105,17 @@ def window():
     return timedelta(days=config.get().stepping.window_days)
 
 
-def settled(campaign, ad_group, run_day, firsts=None):
+def settled(campaign, ad_group, run_day, starts=None):
     """True when the group's stepping window has ended by `run_day`."""
-    first = (first_steps() if firsts is None else firsts).get((campaign, ad_group))
-    return first is not None and run_day >= first + window()
+    start = (window_starts() if starts is None else starts).get((campaign, ad_group))
+    return start is not None and run_day >= start + window()
+
+
+def stepping(campaign, ad_group, run_day, starts=None):
+    """True while the group is inside its stepping window (the daily owns its bid). False before its first daily
+    evaluation and after the window."""
+    start = (window_starts() if starts is None else starts).get((campaign, ad_group))
+    return start is not None and start <= run_day < start + window()
 
 
 def bid_changes(ga, monday, until):
@@ -142,7 +200,7 @@ def plan(client, day):
         metrics.impressions, metrics.search_rank_lost_impression_share FROM ad_group WHERE segments.date = '{day}'
         AND campaign.status = 'ENABLED' AND campaign.advertising_channel_type = 'SEARCH'""")}
 
-    firsts = first_steps()
+    starts = window_starts()
     out = []
     for r in rows(ga, """SELECT campaign.name, ad_group.name, ad_group.resource_name, ad_group.cpc_bid_micros
             FROM ad_group WHERE campaign.status = 'ENABLED' AND campaign.advertising_channel_type = 'SEARCH'
@@ -158,8 +216,8 @@ def plan(client, day):
                "impressions": impressions, "rank_lost": rank_lost,
                "budget_lost": round(budget_lost.get(r.campaign.name, 0.0), 3)}
         out.append(row)
-        if settled(r.campaign.name, name, run_day, firsts):
-            ended = firsts[(r.campaign.name, name)] + window() - timedelta(days=1)
+        if settled(r.campaign.name, name, run_day, starts):
+            ended = starts[(r.campaign.name, name)] + window() - timedelta(days=1)
             row["action"], row["why"] = "settled", f"stepping window ended {ended}; the weekly review sets this bid"
             continue
         group_changes = changes.get(res, [])
@@ -191,9 +249,10 @@ def main():
     steps = [g for g in groups if g["action"] in ("raise", "lower")]
     cur = ads_client.currency()
 
-    entries = [ledger.entry("ad_group", f"{g['campaign']} / {g['ad_group']}", "cpc", g["bid"], g["new_bid"],
-                            f"daily step: {g['why']}", ad_group_topic(g["ad_group"]),
-                            "rank-lost impression share moves toward the band", routine="daily") for g in steps]
+    entries = [{**ledger.entry("ad_group", f"{g['campaign']} / {g['ad_group']}", "cpc", g["bid"], g["new_bid"],
+                               f"daily step: {g['why']}", ad_group_topic(g["ad_group"]),
+                               "rank-lost impression share moves toward the band", routine="daily"),
+                "campaign": g["campaign"], "ad_group": g["ad_group"]} for g in steps]
     ops = []
     for g in steps:
         op = client.get_type("AdGroupOperation")
@@ -214,6 +273,8 @@ def main():
         print(f"{label} {g['campaign']} / {g['ad_group']}: {cur} {g['bid']:.2f} -> {g['new_bid']:.2f} ({g['why']})")
 
     if not validate_only:
+        for c, a in record_evaluations(groups, date.fromisoformat(day) + timedelta(days=1)):
+            print(f"NOTE  {c} / {a}: first daily evaluation, its {cfg.stepping.window_days}-day stepping window starts")
         path = week_path(day)
         week = read(path)
         if week and day in week["days"]:

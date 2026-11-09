@@ -45,7 +45,7 @@ stepping:                    # daily_bids.py: daily bid steps for winning-topic 
   enabled: true
   step: 0.10                 # 10% per day
   weekly_limit: 0.30         # at most +/-30% from Monday's bid within a week
-  window_days: 14            # steps for 14 days from its first step, then the weekly owns the bid
+  window_days: 14            # steps for 14 days from its first daily evaluation, then the weekly owns the bid
   rank_lost_band: [0.20, 0.50]   # aim: lose 20% to 50% of impressions to ad rank
   budget_lost_max: 0.20      # hold when the campaign loses over 20% to budget (fix the budget instead)
   min_impressions: 30        # never lower a bid on fewer impressions than this
