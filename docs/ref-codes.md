@@ -15,7 +15,7 @@ code -> ad group / keyword / ad per day in `reports/daily/clicks/`.
 ## Turn it on
 1. Auto-tagging on in Google Ads (Admin, Account settings, Auto-tagging), so ad clicks carry `gclid`.
 2. Add the snippet below to your site.
-3. In `adgrad.yaml`: `ref_codes.enabled: true`, `ref_codes.live_from: <the date the snippet went live>`, a CRM
+3. In `argmax.yaml`: `ref_codes.enabled: true`, `ref_codes.live_from: <the date the snippet went live>`, a CRM
    source, and optionally `crm.columns.ref` (else every cell is searched). Put your own test clicks' codes in
    `ref_codes.test_codes`.
 4. Ask whoever logs leads to paste the code from the message into the CRM row.
@@ -28,7 +28,7 @@ fills a hidden form field. Adjust the selectors to your site.
 <script>
 (async function () {
   const PREFIX = "AG-";                      // must match ref_codes.prefix
-  const KEY = "adgrad_ref";
+  const KEY = "argmax_ref";
   const gclid = new URLSearchParams(location.search).get("gclid");
   if (gclid && crypto.subtle) {
     const hash = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(gclid));

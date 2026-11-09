@@ -1,14 +1,14 @@
 # Onboarding
 
-Say "onboard me" (or "continue onboarding") to your agent in your private adgrad copy. The agent follows this file.
+Say "onboard me" (or "continue onboarding") to your agent in your private argmax copy. The agent follows this file.
 It works the same in Claude Code, Codex and Grok; where they differ it points to `docs/agents/<agent>.md`.
 
 ---
 
-You are onboarding a new adgrad user. Read `AGENTS.md` first. Rules for the whole session:
+You are onboarding a new argmax user. Read `AGENTS.md` first. Rules for the whole session:
 - One step at a time. Explain what the step is for in one or two lines, do it, check it, record it, then ask before
   moving on. Adapt: skip what the user already has, but check it.
-- Progress lives in `.adgrad/onboarding.json` (gitignored, no secrets): `uv run scripts/onboarding.py` shows it,
+- Progress lives in `.argmax/onboarding.json` (gitignored, no secrets): `uv run scripts/onboarding.py` shows it,
   `uv run scripts/onboarding.py next` gives the next step, `uv run scripts/onboarding.py set <step> <done|pending|
   skipped> "<short note>"` records one. Before uv exists (step a), keep notes in chat and record them once it does.
   On "continue onboarding", run `uv run scripts/onboarding.py` and resume at the first step not done or skipped.
@@ -29,7 +29,7 @@ Offer the install command for anything missing and run it only on a yes:
 Then `uv sync` and `uv run pytest -q` (proves the engine works here). Record `prerequisites done`.
 
 ## b. repo
-Explain: logs, reports and decisions will hold their ad account data, so adgrad runs from their own PRIVATE copy;
+Explain: logs, reports and decisions will hold their ad account data, so argmax runs from their own PRIVATE copy;
 the public repo is only a template. Check `git remote -v`:
 - `origin` is a private repo of theirs (GitHub: `gh repo view --json visibility -q .visibility` says PRIVATE), and
   `upstream` points at the public template with push DISABLED: done.
@@ -51,7 +51,7 @@ consent, stored locally), and a manager account (the API's home). Walk through, 
 3. Google Cloud project: https://console.cloud.google.com , project picker, New project. Then APIs and Services,
    Library, search "Google Ads API", Enable. If they will use a Google Sheet as CRM, also enable "Google Sheets API".
 4. OAuth consent screen: APIs and Services, OAuth consent screen (Google Auth Platform, Branding / Audience): user
-   type External, app name "adgrad", their email; under Audience add their Google account as a test user.
+   type External, app name "argmax", their email; under Audience add their Google account as a test user.
 5. OAuth client: APIs and Services, Credentials, Create credentials, OAuth client ID, application type "Desktop
    app". Download the JSON into the repo root as `client_secret.json` (gitignored).
 6. `cp google-ads.example.yaml google-ads.yaml`; the user fills in `developer_token`, `client_id`,
@@ -66,17 +66,17 @@ Record `google_ads_api done` once `accounts.py` lists their live account.
 ## d. account
 `uv run scripts/accounts.py --json`. Show the list (id, name, currency, time zone, manager or ad account) and let
 them pick the ad account to run. Take currency and time zone from the API, do not ask. If it is reached through a
-manager, that manager id is the `login_customer_id`. Write a first answers file in `.adgrad/answers.yaml`:
+manager, that manager id is the `login_customer_id`. Write a first answers file in `.argmax/answers.yaml`:
 ```yaml
 account: {customer_id: "<id>", login_customer_id: "<manager id or empty>", name: "<name>", currency: <CUR>, timezone: <Area/City>}
 limits: {daily_budget_cap: <current total daily budget of enabled campaigns, rounded up>}
 topics: [general]          # placeholder until step g
 conversions: {lead_signals: [<a conversion action name>]}
 ```
-(Read the current budgets and conversion action names with `uv run scripts/gaql.py` once `adgrad.yaml` exists, or
-ask; step h confirms the cap.) Run `uv run scripts/init.py --answers .adgrad/answers.yaml --dry-run`, show the
-result, and on a yes `uv run scripts/init.py --answers .adgrad/answers.yaml` (add `--force` when rewriting). Then
-`uv run scripts/check_connection.py`. Keep `.adgrad/answers.yaml` up to date in later steps and re-run init with
+(Read the current budgets and conversion action names with `uv run scripts/gaql.py` once `argmax.yaml` exists, or
+ask; step h confirms the cap.) Run `uv run scripts/init.py --answers .argmax/answers.yaml --dry-run`, show the
+result, and on a yes `uv run scripts/init.py --answers .argmax/answers.yaml` (add `--force` when rewriting). Then
+`uv run scripts/check_connection.py`. Keep `.argmax/answers.yaml` up to date in later steps and re-run init with
 `--force`; it is the single source the config is built from during onboarding.
 
 ## e. tracker
@@ -90,7 +90,7 @@ Ask which tool they use for notes or tasks: GitHub Issues, ClickUp, Notion, Line
   file: copy the closest `trackers/*.md`, keep the seven verbs, and add the name to `TRACKERS` in
   `scripts/config.py`. Offer to draft it with them if their agent has a connector for that tool.
 Put `tracker: {backend: ..., <backend section>: {...}}` in the answers, re-run init. Test the loop: create a decision
-titled "Unless you say no: adgrad tracker test" due today with the 4-line body, list open decisions to see it, add
+titled "Unless you say no: argmax tracker test" due today with the 4-line body, list open decisions to see it, add
 a comment, then resolve and close it. Show the user where it appeared. Record `tracker done`.
 
 ## f. crm
@@ -133,8 +133,8 @@ Read-only and validate-only, so nothing changes in the account:
 4. Write a first weekly log `log/<today>.md` (template in AGENTS.md; "Changes made: none, onboarding run") and
    create a first weekly report and one real decision if the data suggests one (otherwise a sample decision
    "Unless you say no: keep the current daily budget cap" due in 7 days) in their tracker, so they see the loop.
-5. Commit their files by path: `git add -f adgrad.yaml STRATEGY.md log/ reports/ decisions/ && git commit -m
-   "adgrad onboarding: config, strategy, first run"`, and push to `origin` (ask first). Record `first_run done`.
+5. Commit their files by path: `git add -f argmax.yaml STRATEGY.md log/ reports/ decisions/ && git commit -m
+   "argmax onboarding: config, strategy, first run"`, and push to `origin` (ask first). Record `first_run done`.
 
 ## j. scheduling
 Read `docs/agents/<their agent>.md` and set up the three routines (daily scout Tuesday to Sunday, weekly review
@@ -146,4 +146,4 @@ routine once by hand to prove it. Record `scheduling done` (or `skipped "runs by
 ## Done
 `uv run scripts/onboarding.py` shows every step done or skipped; `uv run scripts/doctor.py` shows no FAIL. Tell
 them: what runs when, where reports and decisions appear, how to reply ("yes", "no", "reverse"), and that
-"update adgrad from upstream" pulls engine updates (`docs/updating.md`).
+"update argmax from upstream" pulls engine updates (`docs/updating.md`).

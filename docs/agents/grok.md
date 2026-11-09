@@ -1,4 +1,4 @@
-# Running adgrad with Grok Build (xAI)
+# Running argmax with Grok Build (xAI)
 
 Grok Build is xAI's official coding agent CLI (binary `grok`), announced 2026-05-25 as an early beta for SuperGrok
 and X Premium Plus subscribers (https://x.ai/news/grok-build-cli, https://docs.x.ai/build/overview.md). Facts
@@ -19,7 +19,7 @@ Grok Build reads `AGENTS.md` and `CLAUDE.md` natively in every directory from th
 
 ## Onboard and run by hand
 ```bash
-cd your-private-adgrad
+cd your-private-argmax
 grok
 > onboard me
 > run the weekly review
@@ -49,17 +49,17 @@ grok --no-auto-update -p "$(cat prompts/weekly-review.md)" \
 `--always-approve` / `--yolo` outside a throwaway VM.
 
 ## Scheduling
-- **GitHub Actions**: there is no official Grok GitHub Action. `.github/workflows/adgrad-weekly-grok.yml.example`
+- **GitHub Actions**: there is no official Grok GitHub Action. `.github/workflows/argmax-weekly-grok.yml.example`
   installs the CLI and runs it headless with an `XAI_API_KEY` secret. Whether an API key works without a
   subscription could not be verified: test one run by hand first.
 - **cron on your machine**: the headless command above in `crontab -e`, e.g. `0 9 * * 1 cd /path/to/copy && grok
   --no-auto-update -p "$(cat prompts/weekly-review.md)" ... >> log/cron.txt 2>&1`.
 - xAI's separate "Grok Bot" has scheduled routines, but it is a general assistant, not a repo-bound coding agent;
-  it is not a supported way to run adgrad.
+  it is not a supported way to run argmax.
 
 ## Where secrets go
 Locally: `google-ads.yaml`, `client_secret.json` (gitignored), `XAI_API_KEY` in your shell profile or a secret
-manager. CI: GitHub Actions secrets. Never in `adgrad.yaml`, prompts, logs or the tracker.
+manager. CI: GitHub Actions secrets. Never in `argmax.yaml`, prompts, logs or the tracker.
 
 ## Limitations (say them plainly)
 - Early beta, gated to subscribers; flags may change. Verify with `grok --help`.

@@ -4,14 +4,14 @@ Your copy has two kinds of files:
 
 | Yours (never in upstream) | Engine (from upstream) |
 |---|---|
-| `adgrad.yaml`, `STRATEGY.md`, `docs/ad_library.json`, `log/`, `reports/`, `decisions/`, `.adgrad/`, secrets | `scripts/`, `prompts/`, `trackers/`, `strategies/`, `docs/`, `tests/`, `AGENTS.md`, `README.md`, ... |
+| `argmax.yaml`, `STRATEGY.md`, `docs/ad_library.json`, `log/`, `reports/`, `decisions/`, `.argmax/`, secrets | `scripts/`, `prompts/`, `trackers/`, `strategies/`, `docs/`, `tests/`, `AGENTS.md`, `README.md`, ... |
 
 Upstream gitignores every "yours" path, so upstream commits never touch them and a merge cannot conflict with
 them. Your copy tracks them with `git add -f`; leave `.gitignore` as it is.
 
 ## One-time: add upstream (read-only)
 ```bash
-git remote add upstream <upstream-url>    # the public adgrad repo you set up from
+git remote add upstream https://github.com/edward-ch-hu/argmax   # the public repo (or the fork you set up from)
 git remote set-url --push upstream DISABLED   # makes an accidental push to upstream fail
 ```
 
@@ -29,11 +29,11 @@ A copy made with "Use this template" has no shared history with upstream: the fi
 (there should be none). Later merges are ordinary.
 
 If a merge conflicts in an engine file you edited yourself, keep upstream's version unless you meant to fork the
-engine (`git checkout --theirs <file>`), then re-apply your change. Read the new `adgrad.example.yaml` for new
-config fields: they have defaults, so an old `adgrad.yaml` keeps working; `doctor.py` says if anything is missing.
+engine (`git checkout --theirs <file>`), then re-apply your change. Read the new `argmax.example.yaml` for new
+config fields: they have defaults, so an old `argmax.yaml` keeps working; `doctor.py` says if anything is missing.
 
 ## Ask your agent
-> update adgrad from upstream
+> update argmax from upstream
 
 The agent should: check the working tree is clean; add `upstream` if missing (push disabled); fetch; show the new
 commits in a few lines; merge; run `uv sync`, `uv run pytest -q` and `uv run scripts/doctor.py --offline`; report

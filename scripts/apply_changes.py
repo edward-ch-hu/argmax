@@ -1,4 +1,4 @@
-"""Bid, budget and status changes from one JSON file, checked against the Autonomy limits in adgrad.yaml.
+"""Bid, budget and status changes from one JSON file, checked against the Autonomy limits in argmax.yaml.
 
 The only way the weekly review changes bids, budgets and campaign / ad group / keyword status (new keywords and
 negatives go through apply_keyword_review.py). The file is reports/changes-<date>.json; every list is optional.

@@ -6,7 +6,7 @@ the account inside the cap.
 
 Config to match: `conversions.lead_signals: [Purchase]` (your purchase action), topics = product categories,
 `crm.source: none` (Google Ads holds the value) or a CSV of orders if you track margin elsewhere,
-`ad_tests.enabled` only if product pages carry stable claims. adgrad's topic table is lead-centric: read ROAS from
+`ad_tests.enabled` only if product pages carry stable claims. argmax's topic table is lead-centric: read ROAS from
 `metrics.conversions_value` in `scripts/performance_snapshot.py` or `scripts/gaql.py` per ad group.
 
 ## Goal

@@ -2,7 +2,7 @@
 
 Usage: uv run scripts/daily_guard.py [DATE]   (DATE defaults to yesterday, YYYY-MM-DD)
 
-Checks (the day, ENABLED campaigns; thresholds from adgrad.yaml):
+Checks (the day, ENABLED campaigns; thresholds from argmax.yaml):
 - auto-apply recommendation subscriptions are all off
 - Search campaigns have Display Expansion and Search Partners off and got no Display (CONTENT) traffic
   (guard.search_networks_only)

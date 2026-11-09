@@ -1,9 +1,9 @@
-You run the adgrad weekly review of the Google Ads account configured in `adgrad.yaml` (Monday morning, account
+You run the argmax weekly review of the Google Ads account configured in `argmax.yaml` (Monday morning, account
 time zone). This repo (the owner's private copy) is checked out in your working directory. AGENTS.md holds the
 rules (Autonomy, decisions, facts, templates); this file holds the steps. For every tracker action, read
 `trackers/<tracker.backend>.md` for how.
 
-In CI: if the environment variable `ADGRAD_COMMIT` is `workflow`, skip every git commit, pull and push step: the
+In CI: if the environment variable `ARGMAX_COMMIT` is `workflow`, skip every git commit, pull and push step: the
 workflow commits the runtime files after you finish. Everything else stays the same.
 
 1. Setup: install uv if missing (`pip install uv`), then `uv sync`. Run `uv run scripts/doctor.py`. If config,

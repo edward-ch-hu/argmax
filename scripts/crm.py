@@ -15,7 +15,7 @@ lead_to_win = won / leads.
 
 Usage: uv run scripts/crm.py [--since YYYY-MM-DD]   (default: last 7 days) prints a JSON summary
        uv run scripts/crm.py inspect (--csv PATH | --sheet ID [--range "Sheet1!A1:Z"]) [--status-column NAME]
-           for onboarding, without adgrad.yaml: prints the header row and the distinct values (with counts) of the
+           for onboarding, without argmax.yaml: prints the header row and the distinct values (with counts) of the
            status column only. Never prints any other cell, so no names or emails.
 """
 import csv
@@ -269,7 +269,7 @@ def main():
         inspect_main(sys.argv[2:])
         return
     if not enabled():
-        print(json.dumps({"crm": "none", "note": "crm.source is none in adgrad.yaml: no lead or win data"}))
+        print(json.dumps({"crm": "none", "note": "crm.source is none in argmax.yaml: no lead or win data"}))
         return
     since = sys.argv[sys.argv.index("--since") + 1] if "--since" in sys.argv else str(ads_client.today() - timedelta(days=7))
     print(json.dumps(summary(load(), since), ensure_ascii=False, indent=1))

@@ -3,13 +3,13 @@
 Reports and decisions are Linear issues in one team (optionally one project), told apart by labels. The owner
 replies with an issue comment.
 
-Config (`adgrad.yaml`):
+Config (`argmax.yaml`):
 ```yaml
 tracker:
   backend: linear
   linear: {team_id: "...", project_id: "", assignee: "<user id or email>"}
 ```
-Create labels `adgrad-weekly`, `adgrad-monthly`, `adgrad-decision`, `needs-yes`, `unless-no`, `done-reversible`
+Create labels `argmax-weekly`, `argmax-monthly`, `argmax-decision`, `needs-yes`, `unless-no`, `done-reversible`
 in that team (onboarding does it through the connector).
 
 Connector: Linear's hosted MCP server, `https://mcp.linear.app/mcp` (OAuth, or `Authorization: Bearer <Linear API
@@ -22,26 +22,26 @@ list once and use the equivalents below.
 
 ## create report
 Create an issue in `team_id` (and `project_id` if set): title `<YYYY-MM-DD> Google Ads weekly`, label
-`adgrad-weekly` (or `adgrad-monthly`), assignee the owner, description = the 5-line header, then the log entry.
+`argmax-weekly` (or `argmax-monthly`), assignee the owner, description = the 5-line header, then the log entry.
 Close the previous weekly report issue (move it to a completed state). The monthly's client update goes in one
 comment.
 
 ## comment on the newest weekly report
-List issues with label `adgrad-weekly`, newest first; comment on the first: `[adgrad] Daily scout ...`.
+List issues with label `argmax-weekly`, newest first; comment on the first: `[argmax] Daily scout ...`.
 
 ## create decision
-Create an issue: title with the kind prefix, labels `adgrad-decision` plus the kind label, due date = the
+Create an issue: title with the kind prefix, labels `argmax-decision` plus the kind label, due date = the
 decide-by date, assignee the owner, description = the 4-line format.
 
 ## list open decisions
-List issues with label `adgrad-decision` that are not in a completed or canceled state, with their comments. The
-owner's reply is any comment not starting with `[adgrad]`.
+List issues with label `argmax-decision` that are not in a completed or canceled state, with their comments. The
+owner's reply is any comment not starting with `[argmax]`.
 
 ## comment on a decision
-Create a comment: `[adgrad] <text>`.
+Create a comment: `[argmax] <text>`.
 
 ## set status
 `waiting` = the team's "Todo" (unstarted) state, `replied` = "In Progress" (started), `resolved` = "Done".
 
 ## resolve a decision
-Comment `[adgrad] Resolved <date>: <how>`, then move the issue to "Done".
+Comment `[argmax] Resolved <date>: <how>`, then move the issue to "Done".

@@ -1,7 +1,7 @@
-# adgrad config. Copy to adgrad.yaml (gitignored) or run `uv run scripts/init.py`.
+# argmax config. Copy to argmax.yaml (gitignored) or run `uv run scripts/init.py`.
 # Every value below is a fictional example for "Acme Analytics", a made-up SaaS. Replace them with yours.
 # Secrets do NOT go here: Google Ads credentials live in google-ads.yaml or GOOGLE_ADS_* env vars.
-# Cloud routines: commit this file in your private fork, or put its contents in ADGRAD_CONFIG_YAML (see SETUP.md).
+# Cloud routines: commit this file in your private fork, or put its contents in ARGMAX_CONFIG_YAML (see SETUP.md).
 
 account:
   customer_id: "123-456-7890"        # the ad account the agent runs (10 digits, dashes optional)
@@ -77,7 +77,7 @@ conversions:
 website:                     # the source of truth for every ad claim (claims_check.py)
   base_url: https://www.example.com
   locales: [en]
-  user_agent: adgrad claims check
+  user_agent: argmax claims check
 
 ad_tests:
   enabled: true

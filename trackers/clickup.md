@@ -3,7 +3,7 @@
 Reports and decisions are ClickUp tasks in three lists. The owner gets ClickUp notifications and replies with a
 task comment, and can move a decision to "in progress" when they reply.
 
-Config (`adgrad.yaml`):
+Config (`argmax.yaml`):
 ```yaml
 tracker:
   backend: clickup
@@ -28,7 +28,7 @@ comment with `clickup_create_comment`.
 
 ## comment on the newest weekly report
 `clickup_filter_tasks` on `weekly_list_id`, newest first; `clickup_create_comment` on the first task:
-`[adgrad] Daily scout <data date> (run <today>): ...`.
+`[argmax] Daily scout <data date> (run <today>): ...`.
 
 ## create decision
 `clickup_create_task` in `decisions_list_id`: name with the kind prefix, `due_date` = the decide-by date, assignee
@@ -36,14 +36,14 @@ the owner, status "to do", description = the 4-line format.
 
 ## list open decisions
 `clickup_filter_tasks` on `decisions_list_id` with statuses "to do" and "in progress" (both are open), then
-`clickup_get_task_comments` for each. The owner's reply is any comment not starting with `[adgrad]`.
+`clickup_get_task_comments` for each. The owner's reply is any comment not starting with `[argmax]`.
 
 ## comment on a decision
-`clickup_create_comment`: `[adgrad] <text>`.
+`clickup_create_comment`: `[argmax] <text>`.
 
 ## set status
 `clickup_update_task` status: `waiting` = "to do", `replied` = "in progress", `resolved` = "complete". If a reply
 is unclear, ask in a comment and set it back to "to do".
 
 ## resolve a decision
-`clickup_create_comment` `[adgrad] Resolved <date>: <how>`, then `clickup_update_task` status "complete".
+`clickup_create_comment` `[argmax] Resolved <date>: <how>`, then `clickup_update_task` status "complete".

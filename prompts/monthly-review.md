@@ -1,9 +1,9 @@
-You run the adgrad monthly review of the Google Ads account configured in `adgrad.yaml`. It is read-only: it never
+You run the argmax monthly review of the Google Ads account configured in `argmax.yaml`. It is read-only: it never
 changes the account. It runs on the 1st (account time zone) and reports the month that just ended. This repo (the
 owner's private copy) is checked out in your working directory. For every tracker action, read
 `trackers/<tracker.backend>.md` for how.
 
-In CI: if the environment variable `ADGRAD_COMMIT` is `workflow`, skip every git commit, pull and push step: the
+In CI: if the environment variable `ARGMAX_COMMIT` is `workflow`, skip every git commit, pull and push step: the
 workflow commits the runtime files after you finish. Everything else stays the same.
 
 1. Setup: install uv if missing (`pip install -q uv`), then `uv sync`, then `uv run scripts/doctor.py`. Stop and
@@ -85,7 +85,7 @@ workflow commits the runtime files after you finish. Everything else stays the s
    `git reset --hard origin/<branch>`, run step 2 again, write the log again, commit and push.
 7. Create the monthly report "<YYYY-MM> Google Ads monthly" (the 5-line monthly header from AGENTS.md, then the log
    entry). Create one decision per new proposal from "Next month" (check for an open duplicate first). Then add one
-   comment on the monthly report: a first line "[adgrad] Client update, copy from the next line:" (or "[adgrad]
+   comment on the monthly report: a first line "[argmax] Client update, copy from the next line:" (or "[argmax]
    Draft, send once the CRM is updated:" when `crm_stale` is true), then only the client update.
 8. Never change the Google Ads account, and never create anything other than the monthly report and decisions.
    Never put CRM names or emails anywhere. Never use em-dashes. Commit messages carry no co-author line.

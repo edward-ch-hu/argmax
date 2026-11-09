@@ -1,13 +1,14 @@
 # Bootstrap (for AI agents)
 
-You are an AI coding agent. A user pointed you at this public adgrad repo and asked you to set it up for them.
+You are an AI coding agent. A user pointed you at this public argmax repo and asked you to set it up for them.
 You may have read only this file, without cloning anything. Do the steps below in order, one at a time, and confirm
 each with the user before moving on. Be brief; explain jargon in one line when it first comes up. No em-dashes.
 
-The repo URL is the one the user gave you (call it `<upstream-url>`; `<owner>/<repo>` is its GitHub path).
+The public upstream is https://github.com/edward-ch-hu/argmax (call it `<upstream-url>`). If the user gave you a
+fork's URL instead, use that URL and its GitHub path wherever the commands below say `edward-ch-hu/argmax`.
 
 ## 1. Why a private copy (say this in one line)
-"adgrad keeps logs, reports and decisions about your ad account in the repo, so you run it from your own private
+"argmax keeps logs, reports and decisions about your ad account in the repo, so you run it from your own private
 copy; this public repo is only the template."
 
 ## 2. Where should the copy live? Ask the user:
@@ -15,7 +16,7 @@ copy; this public repo is only the template."
 - (b) another git host (GitLab, Bitbucket, a server),
 - (c) local only (no remote; scheduling is then by hand or a local cron).
 
-Then ask for a name (default `adgrad-<their business>`) and a parent folder (default the current directory).
+Then ask for a name (default `argmax-<their business>`) and a parent folder (default the current directory).
 
 ## 3. Create and clone it
 Check tools first: `git --version`; for (a) also `gh --version` and `gh auth status`. If `gh` is missing, give
@@ -24,7 +25,7 @@ the install link (https://cli.github.com) and stop until it is there; if not log
 
 (a) private GitHub repo:
 ```bash
-gh repo create <name> --private --template <owner>/<repo> --clone
+gh repo create <name> --private --template edward-ch-hu/argmax --clone
 cd <name>
 ```
 If template creation is unavailable (the upstream is not marked as a template, or the command fails):
@@ -61,9 +62,9 @@ Some agents (or sandboxes) cannot use a shell or the network. Then give the user
 one block at a time, and ask them to paste the output back (never secrets):
 ```bash
 gh auth login
-gh repo create <name> --private --template <owner>/<repo> --clone
+gh repo create <name> --private --template edward-ch-hu/argmax --clone
 cd <name>
-git remote add upstream <upstream-url>
+git remote add upstream https://github.com/edward-ch-hu/argmax
 git remote set-url --push upstream DISABLED
 ```
 Then ask them to open the new folder in an agent that can run commands (docs/agents/ lists Claude Code, Codex and

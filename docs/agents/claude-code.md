@@ -1,4 +1,4 @@
-# Running adgrad with Claude Code
+# Running argmax with Claude Code
 
 Facts checked against Anthropic's docs on 2026-11-09 (links inline). Claude Code moves fast: if a flag below is
 rejected, `claude --help` and https://code.claude.com/docs are the reference.
@@ -21,7 +21,7 @@ routines: it skips `CLAUDE.md`.
 
 ## Onboard and run by hand
 ```bash
-cd your-private-adgrad
+cd your-private-argmax
 claude
 > onboard me
 > run the weekly review          # the agent follows prompts/weekly-review.md
@@ -49,7 +49,7 @@ claude -p "$(cat prompts/weekly-review.md)" \
 ```
 `-p` runs non-interactively; `--allowedTools` pre-approves exactly what the routine needs and `dontAsk` denies
 anything else instead of waiting for a prompt (https://code.claude.com/docs/en/headless,
-https://code.claude.com/docs/en/cli-reference). Avoid `--dangerously-skip-permissions`: adgrad's own guardrails
+https://code.claude.com/docs/en/cli-reference). Avoid `--dangerously-skip-permissions`: argmax's own guardrails
 are scripts, and the allowlist keeps the agent on them.
 
 ## Scheduling
@@ -59,31 +59,31 @@ needs a claude.ai subscription login). Create three:
 
 | Task | Schedule (account time zone) | Prompt |
 |---|---|---|
-| adgrad daily scout | 08:00 Tuesday to Sunday | `Follow prompts/daily-scout.md.` |
-| adgrad weekly review | 09:00 Monday | `Follow prompts/weekly-review.md.` |
-| adgrad monthly review | 10:00 on the 1st | `Follow prompts/monthly-review.md.` |
+| argmax daily scout | 08:00 Tuesday to Sunday | `Follow prompts/daily-scout.md.` |
+| argmax weekly review | 09:00 Monday | `Follow prompts/weekly-review.md.` |
+| argmax monthly review | 10:00 on the 1st | `Follow prompts/monthly-review.md.` |
 
 Custom cron is read as UTC unless prefixed with `CRON_TZ=<Area/City>`. Then, in the task's cloud environment:
 - Environment variables: `GOOGLE_ADS_DEVELOPER_TOKEN`, `GOOGLE_ADS_CLIENT_ID`, `GOOGLE_ADS_CLIENT_SECRET`,
   `GOOGLE_ADS_REFRESH_TOKEN`, `GOOGLE_ADS_LOGIN_CUSTOMER_ID`, `GOOGLE_ADS_USE_PROTO_PLUS=True`, and `GH_TOKEN` for
-  the github-issues tracker. `adgrad.yaml` is committed in your private copy (or set `ADGRAD_CONFIG_YAML`).
+  the github-issues tracker. `argmax.yaml` is committed in your private copy (or set `ARGMAX_CONFIG_YAML`).
 - Network: allow `googleads.googleapis.com`, `oauth2.googleapis.com`, `sheets.googleapis.com` (Sheets CRM), your
   website (claims check), `pypi.org` and `files.pythonhosted.org` (uv sync), and `api.github.com`.
 - Pushes: tasks push to `claude/`-prefixed branches unless allowed otherwise. The prompts push to the default
   branch; allow it in the task settings, or merge the `claude/` branches (the next run reads the default branch, so
   logs must land there).
 
-**GitHub Actions.** `.github/workflows/adgrad-weekly-claude-code.yml.example` uses
+**GitHub Actions.** `.github/workflows/argmax-weekly-claude-code.yml.example` uses
 `anthropics/claude-code-action@v1` (inputs `prompt`, `claude_args`, `anthropic_api_key` or
 `claude_code_oauth_token`; https://code.claude.com/docs/en/github-actions). Copy it to `.yml`, add the secrets, and
 duplicate it for the daily and monthly routines with their crons.
 
 **cron on your machine.** `crontab -e`, e.g. Monday 09:00 local time:
-`0 9 * * 1 cd /path/to/your-private-adgrad && claude -p "$(cat prompts/weekly-review.md)" --permission-mode dontAsk --allowedTools "..." >> log/cron.txt 2>&1`
+`0 9 * * 1 cd /path/to/your-private-argmax && claude -p "$(cat prompts/weekly-review.md)" --permission-mode dontAsk --allowedTools "..." >> log/cron.txt 2>&1`
 
 ## Where secrets go
 `google-ads.yaml` and `client_secret.json` locally (gitignored); environment variables in cloud tasks; GitHub
-Actions secrets in CI. Never in `adgrad.yaml`, prompts, logs or the tracker.
+Actions secrets in CI. Never in `argmax.yaml`, prompts, logs or the tracker.
 
 ## Limitations
 - Cloud tasks are a research preview with hourly and daily run limits; they draw on your subscription usage.

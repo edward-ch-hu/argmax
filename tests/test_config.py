@@ -74,24 +74,24 @@ def test_missing_file_message(tmp_path, monkeypatch):
 
 def test_get_exits_with_message(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("ADGRAD_CONFIG", raising=False)
-    monkeypatch.delenv("ADGRAD_CONFIG_YAML", raising=False)
+    monkeypatch.delenv("ARGMAX_CONFIG", raising=False)
+    monkeypatch.delenv("ARGMAX_CONFIG_YAML", raising=False)
     config.activate(None)
     with pytest.raises(SystemExit) as e:
         config.get()
-    assert "adgrad config problem" in str(e.value)
+    assert "argmax config problem" in str(e.value)
 
 
 def test_env_sources_and_overrides(tmp_path):
-    text = (ROOT / "adgrad.example.yaml").read_text()
-    cfg = config.load(env={"ADGRAD_CONFIG_YAML": text, "ADGRAD_CUSTOMER_ID": "999-888-7777"})
+    text = (ROOT / "argmax.example.yaml").read_text()
+    cfg = config.load(env={"ARGMAX_CONFIG_YAML": text, "ARGMAX_CUSTOMER_ID": "999-888-7777"})
     assert cfg.account.customer_id == "9998887777"
     path = tmp_path / "c.yaml"
     path.write_text(text)
-    assert config.load(env={"ADGRAD_CONFIG": str(path)}).account.name == "Acme Analytics"
+    assert config.load(env={"ARGMAX_CONFIG": str(path)}).account.name == "Acme Analytics"
 
 
 def test_invalid_yaml(tmp_path):
     with pytest.raises(config.ConfigError) as e:
-        config.load(env={"ADGRAD_CONFIG_YAML": "a: [unclosed"})
+        config.load(env={"ARGMAX_CONFIG_YAML": "a: [unclosed"})
     assert "not valid YAML" in str(e.value)

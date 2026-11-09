@@ -1,6 +1,6 @@
 """What is set up and what is missing: one OK / FAIL / PENDING line per item. Changes nothing anywhere.
 
-Items: config (adgrad.yaml), strategy (STRATEGY.md), credentials (google-ads.yaml or GOOGLE_ADS_* env vars, never
+Items: config (argmax.yaml), strategy (STRATEGY.md), credentials (google-ads.yaml or GOOGLE_ADS_* env vars, never
 printed), API access (skipped with --offline), tracker, CRM (header row and status values only), ad library,
 onboarding progress. PENDING means waiting on something (a developer token approval, an onboarding step); FAIL
 means something is wrong. Exit 1 when anything FAILs.
@@ -163,7 +163,7 @@ def api_check(cfg):
     except Exception as e:  # e.g. a bad refresh token
         return "FAIL", "api", f"{type(e).__name__}: {e}"
     c = rows[0].customer
-    notes = [f"{what} in adgrad.yaml is {mine}, the account says {live}"
+    notes = [f"{what} in argmax.yaml is {mine}, the account says {live}"
              for what, live, mine in (("currency", c.currency_code, cfg.account.currency),
                                       ("timezone", c.time_zone, cfg.account.timezone)) if live != mine]
     return ("FAIL" if notes else "OK"), "api", "; ".join(notes) or f"reads {c.descriptive_name or 'the account'}"

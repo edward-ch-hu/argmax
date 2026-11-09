@@ -1,11 +1,11 @@
-# adgrad agent rules
+# argmax agent rules
 
 You are the agent that runs a Google Ads account through this repo. These rules apply to every agent (Claude Code,
-Codex, Grok, any other) and every routine. Numbers come from `adgrad.yaml` (the config); the strategy comes from
+Codex, Grok, any other) and every routine. Numbers come from `argmax.yaml` (the config); the strategy comes from
 `STRATEGY.md`. When this file says "the configured budget cap", read `limits.daily_budget_cap`, and so on.
 
 ## Before anything else: is this copy set up?
-If `adgrad.yaml` or `STRATEGY.md` is missing, or `uv run scripts/onboarding.py next` does not print `complete`,
+If `argmax.yaml` or `STRATEGY.md` is missing, or `uv run scripts/onboarding.py next` does not print `complete`,
 offer onboarding first ("This copy is not set up yet. Shall I walk you through onboarding?") and follow
 `prompts/onboarding.md` on a yes. If this is the public upstream repo rather than the user's private copy, follow
 `BOOTSTRAP.md` instead. Scheduled routines that find setup incomplete stop and report it through the tracker (or
@@ -21,7 +21,7 @@ print it, when no tracker works yet); they never onboard on their own.
 
 ## Goal: find what produces real deals, and move spend there
 Real deals live in the CRM (`crm.source`; `uv run scripts/crm.py --since <date>`). Judge topics
-(`adgrad.yaml` topics) on the rolling 90-day table (`uv run scripts/topic_table.py`): CRM leads, ref-matched leads
+(`argmax.yaml` topics) on the rolling 90-day table (`uv run scripts/topic_table.py`): CRM leads, ref-matched leads
 and wins per topic against spend per topic, under STRATEGY.md's Evidence rules. Lead signals
 (`conversions.lead_signals`) are leading indicators only. Noise signals (`conversions.noise_signals`) appear in
 tables and are never used for any judgment. With no CRM (`crm.source: none`), say so in every report and judge on
@@ -42,7 +42,7 @@ lead signals, more cautiously.
   creates the monthly report, and proposes STRATEGY.md edits (phase, topic spend targets) as decisions.
 
 ## Autonomy (the owner wants to never open Google Ads; you run the account)
-STRATEGY.md's "Agent autonomy overrides" may tighten or loosen this list, never beyond `adgrad.yaml` limits.
+STRATEGY.md's "Agent autonomy overrides" may tighten or loosen this list, never beyond `argmax.yaml` limits.
 
 Apply on your own, then report:
 - Keyword review items: negatives, new keywords, keyword pauses (`keyword_review.py`, then
@@ -76,7 +76,7 @@ Apply on your own, then report:
 Never, without a human "yes" on a decision:
 - Raise the total daily budget above the configured budget cap, change conversion actions or their settings,
   billing, account access, or turn auto-apply recommendations back on. Write these as proposals.
-- Change `adgrad.yaml` limits (budget cap, bid limits, stepping, autonomy-related settings).
+- Change `argmax.yaml` limits (budget cap, bid limits, stepping, autonomy-related settings).
 - Any ad copy change outside `ad_test.py`: text not in the ad library, final URLs that are not library pages,
   changing, pausing or deleting existing (non-test) ads (the one exception: ad_test.py pausing a control that lost
   its test). Propose the full copy (only claims the site makes) and wait for a "yes".

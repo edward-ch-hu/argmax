@@ -70,7 +70,7 @@ def check(text, topics=None):
         for name, _, _ in rows:
             base = name.split(" ")[0]
             if base not in topics and base != "other":
-                warnings.append(f"Topic spend targets: '{name}' is not a topic in adgrad.yaml")
+                warnings.append(f"Topic spend targets: '{name}' is not a topic in argmax.yaml")
     return fails, warnings
 
 

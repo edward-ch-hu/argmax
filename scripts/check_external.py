@@ -15,7 +15,7 @@ from pathlib import Path
 import config
 import crm
 
-INTERNAL = ["agent", "automation", "script", "routine", "AI", "Claude", "Codex", "Grok", "LLM", "adgrad", "proposal",
+INTERNAL = ["agent", "automation", "script", "routine", "AI", "Claude", "Codex", "Grok", "LLM", "argmax", "proposal",
             "z-test", "z test", "ad_test", "claims_check", "ad_library", "ad library", "guardrail", "autonomy"]
 # Allowed on purpose: "ad copy test", "A/B" and "trial" (a client may hear that ad copy was tested).
 HEADING = "## Client update (external)"

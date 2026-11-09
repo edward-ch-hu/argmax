@@ -1,7 +1,7 @@
 [project]
-name = "adgrad"
+name = "argmax"
 version = "0.1.0"
-description = "An AI agent that runs your Google Ads account inside hard guardrails: gradient steps on spend toward whatever produces deals."
+description = "An AI agent that runs your Google Ads account inside hard guardrails: argmax over spend of real deals."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"

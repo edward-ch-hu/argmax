@@ -1,6 +1,6 @@
 """Ad copy tests: one new RSA (the variant) next to a group's existing RSA (the control), built only from the ad
 library (ad_tests.library, default docs/ad_library.json), whose every line cites a claim quoted from your website.
-Thresholds come from adgrad.yaml (ad_tests); the defaults are shown below.
+Thresholds come from argmax.yaml (ad_tests); the defaults are shown below.
 
 State: reports/ad_tests.json (a list, one entry per test). Applied pauses and new ads go to reports/changes.jsonl.
 
@@ -462,7 +462,7 @@ def reverse(client, ga, tests, test_id, apply):
 
 def main():
     if not t_cfg().enabled:
-        sys.exit("ad_tests.enabled is false in adgrad.yaml: no ad copy tests")
+        sys.exit("ad_tests.enabled is false in argmax.yaml: no ad copy tests")
     args = sys.argv[1:]
     opt = lambda name: args[args.index(name) + 1] if name in args else None  # noqa: E731
     state, check_path = Path(opt("--state") or STATE), opt("--check") or claims_check.OUT

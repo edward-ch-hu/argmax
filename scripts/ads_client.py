@@ -1,7 +1,7 @@
 """Google Ads client and shared helpers.
 
 Credentials: google-ads.yaml if present (local), else the GOOGLE_ADS_* environment variables (cloud). The account
-(customer id, manager id, currency, time zone) comes from adgrad.yaml through config.py.
+(customer id, manager id, currency, time zone) comes from argmax.yaml through config.py.
 """
 import os
 from datetime import datetime

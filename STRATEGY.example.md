@@ -2,7 +2,7 @@
 
 Copy a template from `strategies/` (or this file) to `STRATEGY.md` and make it yours. The routines read it every
 run; `uv run scripts/strategy_check.py` checks that the sections below exist and that target shares add up.
-Limits (budget cap, bid limits) live in `adgrad.yaml`, not here: this file says where to go, the config says how
+Limits (budget cap, bid limits) live in `argmax.yaml`, not here: this file says where to go, the config says how
 fast the agent may move.
 
 ## Goal
@@ -68,7 +68,7 @@ Exit check: a campaign has 30+ lead signals or real CRM leads in 30 days.
 - Keep auto-apply recommendations off; review Google's suggestions by hand.
 
 ## Agent autonomy overrides
-None: the defaults in AGENTS.md apply. Write stricter or looser rules here (still inside `adgrad.yaml` limits),
+None: the defaults in AGENTS.md apply. Write stricter or looser rules here (still inside `argmax.yaml` limits),
 e.g. "no new keywords in the UK campaign without a yes" or "the agent may pause remarketing on its own".
 
 ## Change log

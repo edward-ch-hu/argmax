@@ -1,6 +1,6 @@
-"""Write adgrad.yaml from answers. Non-interactive (what the onboarding agent calls) or interactive (by hand).
+"""Write argmax.yaml from answers. Non-interactive (what the onboarding agent calls) or interactive (by hand).
 
-Answers are a partial config (YAML or JSON) laid over adgrad.example.yaml after its fictional parts are cleared
+Answers are a partial config (YAML or JSON) laid over argmax.example.yaml after its fictional parts are cleared
 (topics, ad group map, conversions, website, CRM, tracker): whatever you do not answer keeps the example's limits
 and thresholds. Shortcuts: "topics" may be a list of names (each becomes a substring of itself), and an empty or
 missing website.base_url turns ad tests off. The result is validated before anything is written.
@@ -8,7 +8,7 @@ missing website.base_url turns ad tests off. The result is validated before anyt
 Usage: uv run scripts/init.py --answers answers.yaml [--dry-run] [--force] [--strategy b2b-lead-gen]
        uv run scripts/init.py                      (asks a few questions instead)
   --dry-run   print the YAML that would be written, write nothing (show it to the owner first)
-  --force     overwrite an existing adgrad.yaml
+  --force     overwrite an existing argmax.yaml
   --strategy  also copy strategies/<name>.md to STRATEGY.md when there is none
 Changes nothing in Google Ads.
 """
@@ -20,9 +20,9 @@ from pathlib import Path
 import config
 import yaml
 
-EXAMPLE, TARGET = Path("adgrad.example.yaml"), Path("adgrad.yaml")
+EXAMPLE, TARGET = Path("argmax.example.yaml"), Path("argmax.yaml")
 STRATEGIES = Path("strategies")
-HEADER = ("# adgrad config written by scripts/init.py. Comments for every field: adgrad.example.yaml.\n"
+HEADER = ("# argmax config written by scripts/init.py. Comments for every field: argmax.example.yaml.\n"
           "# Secrets never go here: google-ads.yaml or GOOGLE_ADS_* env vars (SETUP.md).\n")
 
 
@@ -103,8 +103,8 @@ def ask_list(question, default):
 
 
 def interactive(base):
-    print("adgrad init: a few questions, Enter keeps the [default]. The onboarding prompt (prompts/onboarding.md)\n"
-          "does this and more with your agent; everything else stays as in adgrad.example.yaml.\n")
+    print("argmax init: a few questions, Enter keeps the [default]. The onboarding prompt (prompts/onboarding.md)\n"
+          "does this and more with your agent; everything else stays as in argmax.example.yaml.\n")
     digits = lambda v: None if config.digits(v) else "10 digits, like 123-456-7890"  # noqa: E731
     a = {"account": {
         "customer_id": ask("Google Ads customer id (the ad account)", check=digits),

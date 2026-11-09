@@ -1,10 +1,10 @@
-"""adgrad config: one YAML file, validated once, read by every script through get().
+"""argmax config: one YAML file, validated once, read by every script through get().
 
 Where it comes from (first match wins):
-  1. ADGRAD_CONFIG_YAML  the whole YAML as text (handy for cloud routine environment variables)
-  2. ADGRAD_CONFIG       a path to a YAML file
-  3. adgrad.yaml         in the working directory
-Then ADGRAD_CUSTOMER_ID and ADGRAD_LOGIN_CUSTOMER_ID override the account ids when set.
+  1. ARGMAX_CONFIG_YAML  the whole YAML as text (handy for cloud routine environment variables)
+  2. ARGMAX_CONFIG       a path to a YAML file
+  3. argmax.yaml         in the working directory
+Then ARGMAX_CUSTOMER_ID and ARGMAX_LOGIN_CUSTOMER_ID override the account ids when set.
 
 Optional fields take the defaults in DEFAULTS. A missing file or an invalid field stops the script with one line per
 problem. Secrets (developer token, OAuth client, refresh token) never live here: they stay in google-ads.yaml or the
@@ -21,7 +21,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
 
-DEFAULT_PATH = Path("adgrad.yaml")
+DEFAULT_PATH = Path("argmax.yaml")
 TRACKERS = ("github-issues", "files", "clickup", "notion", "linear")
 CRM_SOURCES = ("none", "csv", "google_sheets")
 STATUSES = ("talking", "trial", "won", "lost_after_trial", "lost_no_trial")
@@ -45,7 +45,7 @@ DEFAULTS = {
     "winning_topics": [],
     "ad_group_topics": {},
     "conversions": {"lead_signals": [], "noise_signals": []},
-    "website": {"base_url": None, "locales": ["en"], "user_agent": "adgrad claims check"},
+    "website": {"base_url": None, "locales": ["en"], "user_agent": "argmax claims check"},
     "ad_tests": {"enabled": True, "library": "docs/ad_library.json", "campaign_locales": {}, "default_locale": None,
                  "min_impressions_14d": 300, "max_running": 3, "max_new_per_week": 1, "min_days": 28,
                  "max_days": 56, "min_arm_impressions": 1000, "z": 1.96, "claims_max_age_days": 7},
@@ -312,12 +312,12 @@ def load_dict(data):
 def source(env=None):
     """(YAML text, where it came from), or raises ConfigError when no config is found."""
     env = os.environ if env is None else env
-    if env.get("ADGRAD_CONFIG_YAML"):
-        return env["ADGRAD_CONFIG_YAML"], "ADGRAD_CONFIG_YAML"
-    path = Path(env["ADGRAD_CONFIG"]) if env.get("ADGRAD_CONFIG") else DEFAULT_PATH
+    if env.get("ARGMAX_CONFIG_YAML"):
+        return env["ARGMAX_CONFIG_YAML"], "ARGMAX_CONFIG_YAML"
+    path = Path(env["ARGMAX_CONFIG"]) if env.get("ARGMAX_CONFIG") else DEFAULT_PATH
     if not path.exists():
-        raise ConfigError(f"no config at {path}: run `uv run scripts/init.py`, or copy adgrad.example.yaml to "
-                          "adgrad.yaml and fill it in (cloud: set ADGRAD_CONFIG or ADGRAD_CONFIG_YAML)")
+        raise ConfigError(f"no config at {path}: run `uv run scripts/init.py`, or copy argmax.example.yaml to "
+                          "argmax.yaml and fill it in (cloud: set ARGMAX_CONFIG or ARGMAX_CONFIG_YAML)")
     return path.read_text(encoding="utf-8"), str(path)
 
 
@@ -332,8 +332,8 @@ def load(env=None):
         account = data.setdefault("account", {}) or {}
         data["account"] = account
         for key in ("customer_id", "login_customer_id"):
-            if env.get(f"ADGRAD_{key.upper()}"):
-                account[key] = env[f"ADGRAD_{key.upper()}"]
+            if env.get(f"ARGMAX_{key.upper()}"):
+                account[key] = env[f"ARGMAX_{key.upper()}"]
     try:
         return load_dict(data)
     except ConfigError as e:
@@ -350,7 +350,7 @@ def get():
         try:
             _active = load()
         except ConfigError as e:
-            sys.exit(f"adgrad config problem: {e}")
+            sys.exit(f"argmax config problem: {e}")
     return _active
 
 

@@ -2,7 +2,7 @@
 
 For a business that sells through a sales conversation (SaaS, agencies, B2B services) and logs leads and deals in
 a CRM. The loop: find the topics that produce real deals, move spend there, cut waste everywhere else, and never
-let a noisy conversion steer the account. This is adgrad's home turf.
+let a noisy conversion steer the account. This is argmax's home turf.
 
 Config to match: `crm.source` set, `winning_topics` = the topics with wins, `stepping.enabled: true`,
 `guard.expected_bidding: MANUAL_CPC` until Phase 3, optionally `ref_codes.enabled: true`.
