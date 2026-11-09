@@ -7,8 +7,12 @@ Where it comes from (first match wins):
 Then ARGMAX_CUSTOMER_ID and ARGMAX_LOGIN_CUSTOMER_ID override the account ids when set.
 
 Optional fields take the defaults in DEFAULTS. A missing file or an invalid field stops the script with one line per
-problem. Secrets (developer token, OAuth client, refresh token) never live here: they stay in google-ads.yaml or the
-GOOGLE_ADS_* environment variables.
+problem. Secrets (OAuth client, refresh token, an old developer token) never live here: they stay in google-ads.yaml
+or the GOOGLE_ADS_* environment variables.
+
+api.access_level is the Google Ads API access level of the Cloud project that owns the OAuth client, as its Google
+Ads API Overview page shows it (the API does not report it). Explorer restricts Keyword Planning, so
+keyword_review.ideas "auto" skips Keyword Planner ideas on test or explorer access.
 
 The business profile (business:) is the one source for markets and languages. When left out, website.locales,
 ad_tests.campaign_locales and ad_tests.default_locale are derived from business.markets (when set, they must agree
@@ -32,6 +36,10 @@ CRM_SOURCES = ("none", "csv", "google_sheets")
 STATUSES = ("talking", "trial", "won", "lost_after_trial", "lost_no_trial")
 RESERVED_TOPICS = ("other", "none", "mixed")
 GOALS = ("leads", "sales", "roas", "calls", "awareness")
+# Google Ads API access levels (per Cloud project since 2026-09-09) and their operations per day on production
+# accounts: https://developers.google.com/google-ads/api/docs/api-policy/access-levels . None = not known yet.
+ACCESS_LEVELS = {"unknown": None, "test": 0, "explorer": 2880, "basic": 15000, "standard": float("inf")}
+IDEAS_MODES = ("auto", "off")
 
 DEFAULTS = {
     "business": {"goal": None, "goal_description": None, "primary_kpi": None, "kpi_conversions": [], "markets": [],
@@ -46,7 +54,8 @@ DEFAULTS = {
     "negatives": {"max_per_day": 10, "lookback_days": 7, "held_notify_cost": 5.0, "min_cost": 3.0, "min_clicks": 10,
                   "junk_words": ["free", "download", "crack", "torrent", "jobs", "job", "salary", "career",
                                  "tutorial", "course", "github", "reddit"]},
-    "keyword_review": {"min_positive_conversions": 2, "min_pause_cost": 20.0, "ideas_per_ad_group": 8,
+    "api": {"access_level": "unknown"},
+    "keyword_review": {"min_positive_conversions": 2, "min_pause_cost": 20.0, "ideas": "auto", "ideas_per_ad_group": 8,
                        "ideas_min_monthly_searches": 10},
     "match_type_review": {"broad_to_phrase_share": 0.30, "phrase_to_exact_share": 0.50, "min_off_intent_spend": 10.0},
     "topics": {},
@@ -68,7 +77,7 @@ DEFAULTS = {
 }
 # Sections that become attribute namespaces (cfg.limits.daily_budget_cap). Mappings keyed by user names (topics,
 # ad group names, statuses, columns) stay plain dicts.
-SECTIONS = ("business", "account", "limits", "guard", "stepping", "negatives", "keyword_review", "match_type_review",
+SECTIONS = ("business", "account", "api", "limits", "guard", "stepping", "negatives", "keyword_review", "match_type_review",
             "conversions", "website", "ad_tests", "crm", "ref_codes", "tracker", "report")
 
 
@@ -205,7 +214,8 @@ def validate(c):
     if a["login_customer_id"] not in (None, ""):
         login = digits(a["login_customer_id"])
         if login is None:
-            p.append(f"account.login_customer_id: must be a 10-digit manager id or empty (got {a['login_customer_id']!r})")
+            p.append("account.login_customer_id: the 10-digit id of the manager account you reach the ad account "
+                     f"through, or empty when your login has direct access (got {a['login_customer_id']!r})")
         a["login_customer_id"] = login
     else:
         a["login_customer_id"] = None
@@ -251,7 +261,17 @@ def validate(c):
     number(p, "negatives.min_clicks", n["min_clicks"], 1)
     number(p, "negatives.held_notify_cost", n["held_notify_cost"], 0)
     str_list(p, "negatives.junk_words", n["junk_words"])
+    level = c["api"]["access_level"]
+    if level not in ACCESS_LEVELS:
+        p.append(f"api.access_level: must be one of {', '.join(ACCESS_LEVELS)} (got {level!r}); read it on the Google "
+                 "Ads API Overview page of your Cloud project")
     for key, value in c["keyword_review"].items():
+        if key == "ideas":
+            if isinstance(value, bool):  # YAML reads a bare off as false (and on as true)
+                value = c["keyword_review"]["ideas"] = "auto" if value else "off"
+            if value not in IDEAS_MODES:
+                p.append(f"keyword_review.ideas: must be one of {', '.join(IDEAS_MODES)} (got {value!r})")
+            continue
         number(p, f"keyword_review.{key}", value, 0)
     m = c["match_type_review"]
     number(p, "match_type_review.broad_to_phrase_share", m["broad_to_phrase_share"], 0, 1, low_open=True)

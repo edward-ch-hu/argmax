@@ -88,14 +88,16 @@ flowchart LR
 | Weekly review | Monday, morning | yes, inside Autonomy and the limits | `prompts/weekly-review.md` |
 | Monthly review | the 1st | never | `prompts/monthly-review.md` |
 
-## Quickstart (about 10 minutes of your time, plus Google's token approval)
+## Quickstart (about 15 minutes of your time; no developer token, no manager account)
 
 1. **Make your private copy.** Paste the one-message prompt at the top into your agent, or by hand:
    `gh repo create my-argmax --private --template edward-ch-hu/argmax --clone` (details in `BOOTSTRAP.md`).
 2. **Open it in your agent and say "onboard me".** `prompts/onboarding.md` walks you through prerequisites, the
    Google Ads API, picking the account, your business profile (goal, KPI, markets, report language, deal currency),
-   your tracker, your CRM, your strategy, the guardrails, a first read-only run, and scheduling. It saves progress,
-   so "continue onboarding" resumes (handy while Google approves your developer token).
+   your tracker, your CRM, your strategy, the guardrails, a first read-only run, and scheduling. Google Ads API
+   access is a Google Cloud project with the API enabled, a Desktop OAuth client, and Explorer access (applied for
+   on the project's Google Ads API Overview page, usually approved automatically). It saves progress, so "continue
+   onboarding" resumes.
 3. **Read your first weekly report**, answer decisions with "yes", "no" or "reverse".
 
 Prefer doing it by hand? `SETUP.md` is the full manual reference. `uv run scripts/doctor.py` tells you what is
@@ -142,6 +144,16 @@ whole file. Raising the cap is a "Needs yes" decision for you.
 
 **Can it write ads?** Only from a library of claims quoted verbatim from your own website, checked against the
 live site before each test. New copy outside the library is a proposal you approve.
+
+**Do I need a developer token or a manager account?** No. Google sunset developer tokens on September 9, 2026;
+access now belongs to the Google Cloud project that owns your OAuth client, and your own Google login signs in to
+the ad account. An existing token or manager account keeps working (SETUP.md, step 1).
+
+**Which Google Ads API access level do I need?** Explorer, which Google usually approves automatically. It allows
+2,880 API operations a day on live accounts; argmax uses about 40 on a normal day and under 400 on Mondays (counted
+in SETUP.md, "API access levels and quota"; `doctor.py` shows it). Explorer leaves out Keyword Planner, so the
+weekly keyword review skips new keyword ideas with a NOTE. Apply for Basic (brand verification first) only if you
+want those ideas or hit the daily limit.
 
 **Which agent is best?** Whichever you already pay for. The engine is plain Python; the agent reads markdown.
 

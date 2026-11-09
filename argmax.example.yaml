@@ -1,14 +1,20 @@
 # argmax config. Copy to argmax.yaml (gitignored) or run `uv run scripts/init.py`.
 # Every value below is a fictional example for "Acme Analytics", a made-up SaaS. Replace them with yours.
-# Secrets do NOT go here: Google Ads credentials live in google-ads.yaml or GOOGLE_ADS_* env vars.
+# Secrets do NOT go here: Google Ads credentials (OAuth client, refresh token) live in google-ads.yaml or GOOGLE_ADS_* env vars.
 # Cloud routines: commit this file in your private fork, or put its contents in ARGMAX_CONFIG_YAML (see SETUP.md).
 
 account:
   customer_id: "123-456-7890"        # the ad account the agent runs (10 digits, dashes optional)
-  login_customer_id: "111-222-3333"  # your manager (MCC) account; leave empty if you log in to the ad account directly
+  login_customer_id: ""              # empty when your Google login has direct access to the ad account (the usual case);
+                                     # the manager account's id only if you reach the ad account through one
   name: Acme Analytics               # used in report titles
   currency: USD                      # the account's currency (check_connection.py warns on a mismatch)
   timezone: America/New_York         # IANA name; the routines' "today" and "yesterday" use it
+
+api:
+  access_level: explorer     # unknown | test | explorer | basic | standard: your Cloud project's Google Ads API access
+                             # level, as its Overview page shows it (console.cloud.google.com/google/ads-apis/overview).
+                             # explorer = 2,880 operations a day on live accounts, no Keyword Planner; basic = 15,000
 
 business:                    # the business profile: what success means, where you sell, how you want to be told
   goal: leads                # leads | sales | roas | calls | awareness; must fit STRATEGY.md's "Fits goals" (doctor.py)
@@ -56,6 +62,8 @@ negatives:                   # daily_negatives.py and keyword_review.py
 keyword_review:
   min_positive_conversions: 2
   min_pause_cost: 40.0
+  ideas: auto                # auto: Keyword Planner ideas unless api.access_level is test or explorer, and skipped with
+                             # a NOTE when Google refuses them (access level, quota); off: never ask for ideas
   ideas_per_ad_group: 8
   ideas_min_monthly_searches: 10
 

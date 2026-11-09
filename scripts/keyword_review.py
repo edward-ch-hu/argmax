@@ -9,7 +9,10 @@ Rules, on the last DAYS of Google Search traffic only (thresholds in argmax.yaml
             judge (move a row to negatives to block it); apply_keyword_review.py ignores this list
   POSITIVE  search term with keyword_review.min_positive_conversions+ conversions that isn't a keyword yet -> phrase
   PAUSE     keyword with keyword_review.min_pause_cost+ spend and no conversion
-  IDEA      Keyword Planner ideas per ad group, in the campaign's own language and locations
+  IDEA      Keyword Planner ideas per ad group, in the campaign's own language and locations. Skipped with a NOTE
+            line (and "ideas_note" in the JSON) when keyword_review.ideas is off, when api.access_level is test or
+            explorer (Explorer access restricts Keyword Planning services), or when Google refuses the call for
+            access or quota; the rest of the review runs either way
 
 Defaults: negatives approve=true; positives, pauses and ideas approve=false (they need a human or agent look:
 converting search terms are often competitor brand names).
@@ -125,7 +128,10 @@ def main():
                                   "clicks": m.clicks, "reason": f"{cfg.account.currency} {money(m.cost_micros)}, 0 conv",
                                   "approve": False})
 
-    out["ideas"] = keyword_ideas(client, ga, campaigns, existing)
+    out["ideas"], note = keyword_ideas(client, ga, campaigns, existing)
+    if note:
+        out["ideas_note"] = note
+        print(f"NOTE  {note}")
     for key in ("negatives", "held_winning", "positives", "pauses"):
         out[key].sort(key=lambda x: -x["cost"])
 
@@ -137,10 +143,39 @@ def main():
           f"{len(out['positives'])} positives, {len(out['pauses'])} pauses, {len(out['ideas'])} ideas -> {stem}.md / .json")
 
 
+# Error codes that mean the project may not use Keyword Planning at all (access level) or not now (quota): stop
+# asking for the remaining ad groups instead of failing each one.
+ACCESS_ERRORS = ("AUTHORIZATION_ERROR", "QUOTA_ERROR", "ACTION_NOT_PERMITTED", "SERVICE_ACCESS_DENIED",
+                 "CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION", "DEVELOPER_TOKEN_NOT_APPROVED", "RESOURCE_EXHAUSTED",
+                 "PERMISSION_DENIED", "ACCESS LEVEL", "EXPLORER")
+
+
+def ideas_skip_reason(cfg=None):
+    """Why Keyword Planner ideas are not asked for at all, or None. Pure."""
+    cfg = cfg or config.get()
+    if cfg.keyword_review.ideas == "off":
+        return "keyword ideas skipped: keyword_review.ideas is off"
+    level = cfg.api.access_level
+    if level in ("test", "explorer"):
+        return (f"keyword ideas skipped: api.access_level is {level}, which does not include Keyword Planning "
+                "(apply for Basic access, after brand verification, to get them; SETUP.md step 1)")
+    return None
+
+
+def access_refused(ex):
+    """True when a GoogleAdsException says the project may not use this service (access level) or is out of quota."""
+    text = " ".join(f"{e.error_code} {e.message}" for e in ex.failure.errors).upper()
+    return any(code in text for code in ACCESS_ERRORS)
+
+
 def keyword_ideas(client, ga, campaigns, existing):
-    """Planner ideas per ad group, seeded with its own live keywords and landing page."""
+    """(ideas, note): Planner ideas per ad group, seeded with its own live keywords and landing page. note says why
+    there are none when they were skipped (switched off, access level, or refused by Google), else None."""
     cfg = config.get()
     k = cfg.keyword_review
+    skip = ideas_skip_reason(cfg)
+    if skip:
+        return [], skip
     planner = client.get_service("KeywordPlanIdeaService")
     ids = ",".join(map(str, campaigns))
     negatives = defaultdict(set)
@@ -185,6 +220,10 @@ def keyword_ideas(client, ga, campaigns, existing):
         try:
             found = list(planner.generate_keyword_ideas(request=req))
         except GoogleAdsException as ex:
+            if access_refused(ex):
+                return ideas, (f"keyword ideas skipped: Google refused Keyword Planner ({ex.failure.errors[0].message}). "
+                               "Explorer access does not include it and the daily quota counts too; set "
+                               "api.access_level or keyword_review.ideas: off to stop asking (SETUP.md step 1)")
             print(f"ideas for {campaigns[cid]} / {gname} failed: {ex.failure.errors[0].message}")
             continue
         blocked = negatives[cid] | {w.lower() for w in cfg.negatives.junk_words}
@@ -197,7 +236,7 @@ def keyword_ideas(client, ga, campaigns, existing):
             ideas.append({"campaign_id": cid, "campaign": campaigns[cid], "ad_group_id": gid, "ad_group": gname,
                           "text": i.text, "monthly_searches": km.avg_monthly_searches, "competition": km.competition.name,
                           "top_bid": money(km.high_top_of_page_bid_micros), "match": "PHRASE", "approve": False})
-    return ideas
+    return ideas, None
 
 
 def render(out):
@@ -211,6 +250,8 @@ def render(out):
     for key, title, cols in sections:
         rows = out[key]
         lines += [f"## {title} ({len(rows)})", ""]
+        if key == "ideas" and out.get("ideas_note"):
+            lines += [f"NOTE: {out['ideas_note']}.", ""]
         if not rows:
             lines += ["None.", ""]
             continue

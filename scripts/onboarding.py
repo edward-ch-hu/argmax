@@ -4,7 +4,7 @@ resumes where it stopped. prompts/onboarding.md drives the steps; this file only
 Usage: uv run scripts/onboarding.py                         show every step and its status
        uv run scripts/onboarding.py next                    print the first step that is not done or skipped
        uv run scripts/onboarding.py set <step> <status> ["note"]
-Statuses: todo, done, pending (waiting on something outside, e.g. developer token approval), skipped.
+Statuses: todo, done, pending (waiting on something outside, e.g. Explorer access approval), skipped.
 """
 import json
 import sys

@@ -1,7 +1,11 @@
 # Copy to google-ads.yaml (gitignored) and fill in. Cloud routines use GOOGLE_ADS_* env vars instead (SETUP.md).
-developer_token: INSERT_DEVELOPER_TOKEN
+# Only these three are needed: no developer token and no manager account (Google sunset developer tokens on
+# 2026-09-09; API access now belongs to the Google Cloud project that owns this OAuth client).
 client_id: INSERT_OAUTH_CLIENT_ID
 client_secret: INSERT_OAUTH_CLIENT_SECRET
 refresh_token: INSERT_REFRESH_TOKEN  # from: uv run scripts/get_refresh_token.py client_secret.json
-login_customer_id: INSERT_MANAGER_ACCOUNT_ID  # 10 digits, no dashes (argmax.yaml's login_customer_id overrides it)
 use_proto_plus: True
+# Optional, only if you already have them:
+# developer_token: an old token still works (Google ignores it) until a future major API version rejects it
+# login_customer_id: 10 digits, no dashes, only when you reach the ad account through a manager account
+#                    (argmax.yaml's account.login_customer_id overrides it)

@@ -11,8 +11,9 @@ monthly review, copy it again, change `name`, the `cron`, and the prompt file (`
 `prompts/monthly-review.md`). Cron is UTC: convert from your account time zone.
 
 Secrets (Settings, Secrets and variables, Actions):
-- `GOOGLE_ADS_DEVELOPER_TOKEN`, `GOOGLE_ADS_CLIENT_ID`, `GOOGLE_ADS_CLIENT_SECRET`, `GOOGLE_ADS_REFRESH_TOKEN`,
-  `GOOGLE_ADS_LOGIN_CUSTOMER_ID`
+- `GOOGLE_ADS_CLIENT_ID`, `GOOGLE_ADS_CLIENT_SECRET`, `GOOGLE_ADS_REFRESH_TOKEN` (no developer token needed)
+- optional `GOOGLE_ADS_LOGIN_CUSTOMER_ID`, only when the ad account is reached through a manager account (an unset
+  secret is passed as an empty value, which argmax ignores)
 - one agent key: `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` (Claude Code), `OPENAI_API_KEY` (Codex),
   `XAI_API_KEY` (Grok)
 - optional `ARGMAX_CONFIG_YAML` if you do not commit `argmax.yaml`

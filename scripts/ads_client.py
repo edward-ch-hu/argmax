@@ -1,15 +1,26 @@
 """Google Ads client and shared helpers.
 
-Credentials: google-ads.yaml if present (local), else the GOOGLE_ADS_* environment variables (cloud). The account
-(customer id, manager id, currency, time zone) comes from argmax.yaml through config.py.
+Credentials: google-ads.yaml if present (local), else the GOOGLE_ADS_* environment variables (cloud). Only the OAuth
+client (client_id, client_secret) and the refresh token are needed: Google sunset developer tokens on 2026-09-09
+(the header is optional and ignored; google-ads-python 32.0.0 and later no longer require one), and API access now
+belongs to the Google Cloud project that owns the OAuth client. Empty values and INSERT_ placeholders are dropped,
+so developer_token and login_customer_id may be left out or left empty. The account (customer id, manager id,
+currency, time zone) comes from argmax.yaml through config.py.
 """
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 
 import config
 
 CREDENTIALS = Path("google-ads.yaml")
+# The google-ads library settings argmax passes on (GOOGLE_ADS_<KEY> in the environment). Only the OAuth trio is
+# required; use_proto_plus defaults to True.
+SETTING_KEYS = ("client_id", "client_secret", "refresh_token", "developer_token", "login_customer_id",
+                "use_proto_plus", "json_key_file_path", "impersonated_email", "use_application_default_credentials",
+                "endpoint", "linked_customer_id", "http_proxy")
+REQUIRED_KEYS = ("client_id", "client_secret", "refresh_token")
 # Currencies Google Ads bills in whole units: bids and budgets round to 1, not 0.01.
 ZERO_DECIMAL = {"JPY", "KRW", "VND", "CLP", "ISK", "PYG", "UGX"}
 
@@ -51,13 +62,50 @@ def rows(ga, query):
     return [r for batch in ga.search_stream(customer_id=customer_id(), query=query) for r in batch.results]
 
 
-def load():
+def placeholder(value):
+    """True for a value that is not really set: None, empty, or an INSERT_... placeholder from the example."""
+    return value is None or str(value).strip() == "" or str(value).strip().startswith("INSERT_")
+
+
+def client_settings(env=None, path=None):
+    """The google-ads library settings from google-ads.yaml (local) or the GOOGLE_ADS_* env vars (cloud), with
+    placeholders dropped and use_proto_plus defaulting to True. Never printed: it holds secrets."""
+    import yaml
+
+    env = os.environ if env is None else env
+    path = CREDENTIALS if path is None else Path(path)
+    if path.exists():
+        data = yaml.safe_load(path.read_text()) or {}
+    else:
+        data = {k: env.get(f"GOOGLE_ADS_{k.upper()}") for k in SETTING_KEYS}
+    data = {k: v for k, v in data.items() if not placeholder(v)}
+    if "login_customer_id" in data:  # the library wants 10 digits; dashes are a common slip
+        data["login_customer_id"] = re.sub(r"[\s-]", "", str(data["login_customer_id"]))
+    data.setdefault("use_proto_plus", True)
+    return data
+
+
+def missing_credentials(settings):
+    """The required OAuth values that are not set (developer_token is not one of them)."""
+    if settings.get("json_key_file_path") or settings.get("use_application_default_credentials"):
+        return []  # service account or Application Default Credentials instead of a refresh token
+    return [k for k in REQUIRED_KEYS if placeholder(settings.get(k))]
+
+
+def client_from_credentials():
+    """A GoogleAdsClient from google-ads.yaml or the environment alone (no argmax.yaml needed)."""
     from google.ads.googleads.client import GoogleAdsClient
 
-    if CREDENTIALS.exists():
-        client = GoogleAdsClient.load_from_storage(str(CREDENTIALS))
-    else:
-        client = GoogleAdsClient.load_from_env()
+    settings = client_settings()
+    missing = missing_credentials(settings)
+    if missing:
+        source = str(CREDENTIALS) if CREDENTIALS.exists() else "the GOOGLE_ADS_* environment variables"
+        raise SystemExit(f"FAIL   {source}: missing {', '.join(missing)} (SETUP.md step 2; no developer token needed)")
+    return GoogleAdsClient.load_from_dict(settings)
+
+
+def load():
+    client = client_from_credentials()
     login = config.get().account.login_customer_id
     if login:
         client.login_customer_id = login
@@ -66,12 +114,35 @@ def load():
 
 def oauth_credentials():
     """client_id, client_secret and refresh_token from google-ads.yaml or the GOOGLE_ADS_* environment variables."""
-    import yaml
+    settings = client_settings()
+    return {k: settings.get(k) for k in REQUIRED_KEYS}
 
-    if CREDENTIALS.exists():
-        c = yaml.safe_load(CREDENTIALS.read_text())
-        return {k: c[k] for k in ("client_id", "client_secret", "refresh_token")}
-    return {k: os.environ[f"GOOGLE_ADS_{k.upper()}"] for k in ("client_id", "client_secret", "refresh_token")}
+
+def error_text(ex):
+    """One line for a GoogleAdsException: each error's code and message."""
+    return "; ".join(f"{str(e.error_code).strip()} {e.message}".strip() for e in ex.failure.errors)
+
+
+def explain_api_error(text):
+    """(status, message) for an API error text, with what to do. PENDING means waiting on Google (Test access only),
+    FAIL means something to fix. Pure; the codes are AuthorizationError values of the Google Ads API."""
+    m = text.upper()
+    if any(code in m for code in ("CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION", "DEVELOPER_TOKEN_NOT_APPROVED",
+                                  "ONLY_APPROVED_FOR_USE_WITH_TEST_ACCOUNTS", "TEST ACCOUNTS", "TEST_ACCOUNTS")):
+        return "PENDING", ("the Cloud project has Test access (test accounts only): apply for Explorer on the Google "
+                           "Ads API Overview page, https://console.cloud.google.com/google/ads-apis/overview "
+                           "(SETUP.md step 1)")
+    if "AUTHORIZATION_ERROR" in m.replace("AUTHORIZATION_ERROR:", ""):
+        return "FAIL", (f"{text}. Known Google issue: projects upgraded after 2026-09-09 can get AUTHORIZATION_ERROR on "
+                        "production accounts; workaround: a new Cloud project that applies for Explorer "
+                        "(SETUP.md, Troubleshooting)")
+    if "USER_PERMISSION_DENIED" in m:
+        return "FAIL", (f"{text}. The signed-in Google login cannot reach this account: check account.customer_id, "
+                        "and set account.login_customer_id only when you reach the account through a manager account")
+    if "INVALID_LOGIN_CUSTOMER_ID" in m:
+        return "FAIL", (f"{text}. account.login_customer_id must be the manager account the ad account sits under, or "
+                        "empty when your login has direct access to the ad account")
+    return "FAIL", text
 
 
 def sheet_values(spreadsheet_id, cell_range):
